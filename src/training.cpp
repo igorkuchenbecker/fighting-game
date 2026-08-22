@@ -3,6 +3,7 @@
 #include "raylib.h"
 
 #include "combat.h"
+#include "dummy_ai.h"
 #include "fighter.h"
 #include "game.h"
 #include "input.h"
@@ -12,6 +13,7 @@ namespace {
 
 constexpr Color kPlayerColor = MAROON;
 constexpr Color kDummyColor = DARKBLUE;
+constexpr std::uint32_t kDummyAiSeed = 424242u;
 
 void DrawBoxOutline(Rectangle rect, Color color) {
   DrawRectangleLines(static_cast<int>(rect.x), static_cast<int>(rect.y),
@@ -56,11 +58,12 @@ void DrawFrameDataOverlay(const Fighter& player) {
 
 }  // namespace
 
-void RunTrainingMode() {
+void RunTrainingMode(bool use_ai_dummy) {
   Fighter player;
   Fighter dummy;
   ResetFighterForNewRound(player, kArenaLeft + 250.0f);
   ResetFighterForNewRound(dummy, kArenaRight - 250.0f);
+  DummyAi dummy_ai = MakeDummyAi(kDummyAiSeed);
 
   InputBuffer player_buffer;
   double accumulator = 0.0;
@@ -77,13 +80,17 @@ void RunTrainingMode() {
     accumulator += GetFrameTime();
     while (accumulator >= kFixedDt) {
       const InputFrame& player_input = player_buffer.AtDelay(0);
-      const InputFrame dummy_input{};  // dummy nunca ataca; só apanha
+      // Sem --training-ai: dummy sempre parado (alvo previsível pra
+      // estudar frame data/combos). Com --training-ai: anda/bloqueia/
+      // ataca via IA determinística com seed (dummy_ai.h).
+      const InputFrame dummy_input =
+          use_ai_dummy ? ComputeDummyAiInput(dummy_ai, dummy, player) : InputFrame{};
 
       UpdateFacing(player, dummy);
       StepFighter(player, player_input);
       StepFighter(dummy, dummy_input);
       ResolveCombat(player, dummy, dummy_input);
-      ResolveCombat(dummy, player, player_input);  // simétrico, sempre no-op (dummy não ataca)
+      ResolveCombat(dummy, player, player_input);
 
       if (dummy.health <= 0) {
         ResetFighterForNewRound(dummy, dummy.position.x);  // dummy infinito: vida sempre volta
@@ -101,7 +108,8 @@ void RunTrainingMode() {
       DrawDebugBoxes(player, dummy);
     }
     DrawFrameDataOverlay(player);
-    DrawText("MODO TREINO  —  F1: hit/hurtbox", 20, 20, 20, RAYWHITE);
+    DrawText(use_ai_dummy ? "MODO TREINO (IA)  —  F1: hit/hurtbox" : "MODO TREINO  —  F1: hit/hurtbox",
+             20, 20, 20, RAYWHITE);
     EndDrawing();
   }
 }

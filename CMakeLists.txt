@@ -31,5 +31,6 @@ add_executable(fighting_game
   src/training.cpp
   src/sprites.cpp
   src/audio.cpp
+  src/dummy_ai.cpp
 )
 target_link_libraries(fighting_game PRIVATE raylib)

@@ -29,6 +29,7 @@ constexpr Color kP2Color = DARKBLUE;
 
 int main(int argc, char** argv) {
   bool training_mode = false;
+  bool training_ai_dummy = false;
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--selftest") == 0) {
       return RunSelfTest();  // headless: sem InitWindow, só a simulação
@@ -36,13 +37,17 @@ int main(int argc, char** argv) {
     if (std::strcmp(argv[i], "--training") == 0) {
       training_mode = true;
     }
+    if (std::strcmp(argv[i], "--training-ai") == 0) {
+      training_mode = true;
+      training_ai_dummy = true;
+    }
   }
 
   InitWindow(kScreenWidth, kScreenHeight, "Fighting Game");
   SetTargetFPS(60);
 
   if (training_mode) {
-    RunTrainingMode();
+    RunTrainingMode(training_ai_dummy);
     CloseWindow();
     return 0;
   }

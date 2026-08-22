@@ -22,9 +22,10 @@ Build limpo é lei: qualquer warning quebra a build (`-Werror`). O primeiro
 ## Como rodar
 
 ```sh
-./build/release/fighting_game              # partida normal
-./build/release/fighting_game --training   # modo treino (dummy infinito, F1: hit/hurtbox)
-./build/release/fighting_game --selftest   # prova de determinismo, headless, sai 0/1
+./build/release/fighting_game                # partida normal
+./build/release/fighting_game --training      # treino, dummy parado (F1: hit/hurtbox)
+./build/release/fighting_game --training-ai   # treino, dummy com IA (anda/bloqueia/ataca)
+./build/release/fighting_game --selftest      # prova de determinismo, headless, sai 0/1
 ```
 
 Abre janela 1280×720. P1 (Warrior) = setas + espaço/enter/shift-direito
@@ -38,11 +39,12 @@ automáticos. Fecha com o botão de fechar da janela (ou Alt+F4).
 ## Mapa de arquivos
 
 ```
-CMakeLists.txt        — alvo fighting_game (12 .cpp), FetchContent do raylib (tag 5.5)
+CMakeLists.txt        — alvo fighting_game (13 .cpp), FetchContent do raylib (tag 5.5)
 CMakePresets.json      — presets debug/release (flags descritas acima)
-src/main.cpp           — orquestração fina: lê argv (--selftest/--training),
-                         senão janela + loop de timestep fixo, leitura de
-                         input dos 2 jogadores, chama UpdateMatch e as
+src/main.cpp           — orquestração fina: lê argv (--selftest/--training/
+                         --training-ai), senão janela + áudio + loop de
+                         timestep fixo, leitura de input dos 2 jogadores,
+                         chama UpdateMatch, reage a MatchEvents (som), e as
                          funções de desenho (fighter/arena/projéteis/
                          overlay/HUD)
 src/input.h/.cpp       — Direction8, InputFrame (dado puro), InputBuffer
@@ -75,15 +77,19 @@ src/game.h/.cpp        — RoundPhase, Match (inclui os 2 slots de Projectile),
 src/selftest.h/.cpp    — RunSelfTest: harness de --selftest (LCG de seed
                          fixa + hash FNV-1a do estado final, 2 execuções
                          comparadas, headless)
-src/training.h/.cpp    — RunTrainingMode: loop do modo treino (dummy
-                         infinito, tecla F1 pra hit/hurtbox, overlay de
-                         frame data sempre visível)
+src/training.h/.cpp    — RunTrainingMode(use_ai_dummy): loop do modo treino
+                         (dummy infinito, tecla F1 pra hit/hurtbox, overlay
+                         de frame data sempre visível; dummy estático por
+                         padrão, ou dirigido por dummy_ai.h com --training-ai)
 src/sprites.h/.cpp     — CharacterSprite, LoadCharacterSprite/
                          UnloadCharacterSprite (fallback automático se o
                          arquivo não existir em assets/)
 src/audio.h/.cpp       — SoundBank, LoadSoundBank/UnloadSoundBank,
                          PlayHitSound/PlayBlockSound/PlayJumpSound/PlayKoSound
                          (fallback automático se assets/audio/*.wav não existir)
+src/dummy_ai.h/.cpp    — DummyAi, MakeDummyAi, ComputeDummyAiInput: IA
+                         determinística do dummy em --training-ai (LCG com
+                         seed fixa; anda/bloqueia reativo/ataca)
 docs/DECISOES.md       — log de decisões (data | decisão | motivo | alternativas)
 AGENTS.md / CLAUDE.md  — este arquivo (symlink)
 assets/                — ainda não existe (nenhuma arte/áudio real
@@ -385,16 +391,37 @@ próprio `--selftest`.
   `UpdateMatch` retornando `MatchEvents` não afeta o determinismo. Build
   limpo nos dois presets, ASan sem leak.
 
-## Próxima fatia (F7c — IA dummy, se sobrar fôlego)
+**F7c — IA dummy (sub-fatia da F7, última): CONCLUÍDA.**
 
-Última sub-fatia da F7 (e do roadmap inteiro). IA dummy básica com seed
-(anda, bloqueia, bate aleatório) — primeiro uso real de RNG no projeto;
-precisa de seed explícita (provavelmente um LCG como o de
-`selftest.cpp`, ou um novo gerador dedicado), nunca `rand()`/`time()`
-cru (requisito duro). Onde ela entra: provavelmente substitui o dummy
-estático do modo treino (`training.cpp`) por um comportamento simples
-orientado por estado (parado→anda até certa distância→bloqueia se o
-jogador atacar por perto→ataca de vez em quando), tudo determinístico
-dada a seed. Como o roadmap diz "se sobrar fôlego", a F7 inteira é a
-mais opcional de todas — o jogo já está completo e jogável (F0–F6) sem
-ela; F7a/F7b já são além do mínimo pedido.
+- Módulo `dummy_ai.h/.cpp` novo: `DummyAi{rng_state, decision_timer,
+  current_direction, pending_attack}`, `MakeDummyAi(seed)`,
+  `ComputeDummyAiInput(ai, dummy, player)` — LCG próprio (mesma fórmula
+  do `selftest.cpp`, cópia local, não compartilhada — ver
+  `docs/DECISOES.md`), nunca `rand()`/`time()` (requisito duro).
+  Comportamento: reage bloqueando (prioridade máxima) se o jogador ataca
+  por perto; senão, a cada 30-59 frames (também decidido pelo LCG),
+  sorteia entre aproximar/afastar/parar/atacar.
+- **Modo separado** `--training-ai` (não substitui `--training` puro):
+  `RunTrainingMode(bool use_ai_dummy = false)` ganhou o parâmetro; sem
+  ele, dummy 100% estático como sempre (ideal pra estudar frame data);
+  com `--training-ai`, dummy dirigido pela IA. Preserva 100% do
+  comportamento já testado da F6b — ver `docs/DECISOES.md`.
+- Verificado com `--training-ai` real (log temporário em mudança de
+  estado do dummy, revertido antes do commit): variedade de
+  comportamento observada numa sessão determinística — anda em direção
+  ao jogador, anda pra longe, fica parado, apanha um hit (Hitstun,
+  confirma integração com `ResolveCombat`) e ataca por conta própria
+  (Attack, confirma que o pulso de borda de subida do botão funciona).
+  Reação de bloqueio validada por revisão de código (mesma convenção
+  geométrica já testada ao vivo em F3/F4a/F5c/F5d), não observada nesta
+  sessão específica — ver `docs/DECISOES.md`. Build limpo nos dois
+  presets, ASan sem leak nos dois modos de treino; `--selftest`
+  re-verificado com o mesmo hash de sempre (IA não toca a simulação da
+  partida normal).
+
+**F7 (Polimento) está COMPLETA — e com ela, o roadmap inteiro do
+prompt original (F0 a F7).** Spritesheets com fallback (F7a), áudio
+opcional com fallback (F7b) e IA dummy básica com seed (F7c) — as 3
+sub-fatias "se sobrar fôlego" foram todas implementadas, verificadas e
+commitadas individualmente, sem regredir nenhum comportamento anterior
+(`--selftest` manteve o mesmo hash do início da F4b até aqui).
