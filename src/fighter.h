@@ -35,14 +35,28 @@ enum class AttackPhase { None, Startup, Active, Recovery };
 // Todo golpe existente vive na tabela central de frame data (combat.cpp)
 // — nada de número mágico de dano/frame/hitbox espalhado pelo resto do
 // código (requisito duro). Mora aqui (não em combat.h) porque `Fighter`
-// precisa guardar qual golpe está em andamento.
-enum class MoveId { LightStanding, MediumStanding, HeavyStanding, CrouchingLight, JumpingLight };
+// precisa guardar qual golpe está em andamento. `Projectile` não usa
+// hit/hurtbox do próprio lutador — vira uma entidade `Projectile`
+// separada (projectile.h) no instante em que a fase Active começa.
+enum class MoveId {
+  LightStanding,
+  MediumStanding,
+  HeavyStanding,
+  CrouchingLight,
+  JumpingLight,
+  Projectile,
+};
+
+// Só 2 personagens por ora (F5); diferença mecânica principal é o Gunner
+// ter o projétil (agachado+pesado) — ver docs/DECISOES.md.
+enum class CharacterId { Warrior, Gunner };
 
 struct Fighter {
   Vector2 position{(kArenaLeft + kArenaRight) / 2.0f, kFloorY};
   Vector2 velocity{0.0f, 0.0f};
   bool is_grounded = true;
   bool facing_right = true;
+  CharacterId character = CharacterId::Warrior;
   FighterState state = FighterState::Idle;
   AttackPhase attack_phase = AttackPhase::None;
   MoveId current_move = MoveId::LightStanding;  // golpe em andamento (só válido durante Attack)

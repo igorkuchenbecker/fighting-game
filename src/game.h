@@ -24,6 +24,8 @@ struct Match {
   RoundPhase phase = RoundPhase::Intro;
   RoundEndReason end_reason = RoundEndReason::None;
   int phase_timer = 0;  // frames decorridos na fase atual
+  Projectile p1_projectile;  // no máx. 1 projétil ativo por jogador
+  Projectile p2_projectile;
 };
 
 // Orquestra um passo de partida: durante RoundPhase::Fighting, avança a
@@ -42,3 +44,6 @@ void DrawMatchOverlay(const Match& match);
 // placeholder de cada jogador. `p1_color`/`p2_color` são os mesmos tons
 // usados pra desenhar os lutadores (mantém P1/P2 reconhecíveis no HUD).
 void DrawHud(const Fighter& p1, const Fighter& p2, Color p1_color, Color p2_color);
+
+// Desenha os projéteis ativos da partida (se houver).
+void DrawProjectiles(const Match& match);

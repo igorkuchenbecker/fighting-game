@@ -25,34 +25,45 @@ Build limpo é lei: qualquer warning quebra a build (`-Werror`). O primeiro
 ./build/release/fighting_game   # ou ./build/debug/fighting_game
 ```
 
-Abre janela 1280×720. P1 = setas + espaço (ataque) ou gamepad slot 0; P2 =
-WASD + ctrl-esquerdo ou gamepad slot 1. Partida best-of-3 com intro/timer/
-KO automáticos. Fecha com o botão de fechar da janela (ou Alt+F4).
+Abre janela 1280×720. P1 (Warrior) = setas + espaço/enter/shift-direito
+(leve/médio/pesado) ou gamepad slot 0; P2 (Gunner) = WASD +
+ctrl-esquerdo/shift-esquerdo/Q, ou gamepad slot 1 — Gunner solta um
+projétil segurando baixo+pesado. Partida best-of-3 com intro/timer/KO
+automáticos. Fecha com o botão de fechar da janela (ou Alt+F4).
 
 ## Mapa de arquivos
 
 ```
-CMakeLists.txt        — alvo fighting_game (6 .cpp), FetchContent do raylib (tag 5.5)
+CMakeLists.txt        — alvo fighting_game (7 .cpp), FetchContent do raylib (tag 5.5)
 CMakePresets.json      — presets debug/release (flags descritas acima)
 src/main.cpp           — orquestração fina: janela, loop de timestep fixo,
                          leitura de input dos 2 jogadores, chama UpdateMatch
-                         e as funções de desenho (fighter/arena/overlay/HUD)
+                         e as funções de desenho (fighter/arena/projéteis/
+                         overlay/HUD)
 src/input.h/.cpp       — Direction8, InputFrame (dado puro), InputBuffer
                          (circular, 10 frames), ReadInputFrame (único ponto
                          que toca IsKeyDown/gamepad)
-src/fighter.h/.cpp     — FighterState (FSM completa), AttackPhase, Fighter,
-                         StepFighter (transição + física, puro/determinístico),
-                         UpdateFacing, ApplyHitReaction/ApplyBlockReaction/
+src/fighter.h/.cpp     — FighterState (FSM completa), AttackPhase, MoveId,
+                         CharacterId, Fighter, StepFighter (transição +
+                         física, puro/determinístico), UpdateFacing,
+                         ApplyHitReaction/ApplyBlockReaction/
                          ApplyKnockdownReaction/SetRoundOutcome/AddSuperMeter,
                          ClampFighterToArena, ResetFighterForNewRound
-src/combat.h/.cpp      — MoveId, MoveData, tabela central de frame data
-                         (kMoveTable), FighterHurtbox/FighterHitbox, ResolveCombat
-                         (dano/hitstun/pushback/bloqueio/blockstun/chip/combo/meter)
+src/combat.h/.cpp      — MoveData, tabela central de frame data (kMoveTable,
+                         6 golpes), FighterHurtbox/FighterHitbox, ResolveCombat
+                         (corpo-a-corpo) e ResolveProjectileHit (projétil),
+                         ambos via ApplyMoveOutcome (dano/hitstun/pushback/
+                         bloqueio/blockstun/chip/combo/meter compartilhado)
+src/projectile.h/.cpp — Projectile (entidade independente do Fighter),
+                         SpawnProjectile/StepProjectile/ProjectileHitbox/
+                         DrawProjectile
 src/stage.h/.cpp       — kScreenWidth/Height, kArenaLeft/Right/kFloorY, DrawArena
-src/game.h/.cpp        — RoundPhase, Match, kFixedDt, UpdateMatch (orquestra
-                         facing/física/combate durante Fighting + fluxo de
+src/game.h/.cpp        — RoundPhase, Match (inclui os 2 slots de Projectile),
+                         kFixedDt, UpdateMatch (orquestra facing/física/
+                         combate/projéteis durante Fighting + fluxo de
                          round), DrawMatchOverlay (intro/timer/KO/resultado),
-                         DrawHud (vida/meter/combo/retrato por jogador)
+                         DrawHud (vida/meter/combo/retrato por jogador),
+                         DrawProjectiles
 docs/DECISOES.md       — log de decisões (data | decisão | motivo | alternativas)
 AGENTS.md / CLAUDE.md  — este arquivo (symlink)
 assets/                — ainda não existe; só entra na F5+ (spritesheets) e
@@ -166,16 +177,50 @@ Ordem de extração do prompt (`input, fighter, combat, stage, game`) completa.
   resolve normalmente de volta a Idle. Build limpo nos dois presets,
   ASan sem leak (saída limpa forçada com limite de frames temporário).
 
-## Próxima fatia (F5c — 2º personagem + projétil)
+**F5c — 2º personagem + projétil (sub-fatia da F5): CONCLUÍDA.**
 
-2 personagens distintos: provavelmente um `CharacterId` em `Fighter` e
-`kMoveTable` vira uma tabela por personagem (hoje é fixa, um golpe = um
-índice global — precisa virar `GetMoveData(CharacterId, MoveId)` ou
-tabelas separadas por personagem). 1 projétil (personagem 2) — precisa
-de uma entidade nova tipo `Projectile` com sua própria hitbox/
-velocidade/tempo de vida, provavelmente um `src/projectile.h/.cpp`
-(update/render/colisão contra hurtbox do oponente, sem colidir com o
-próprio atacante). Depois: **F5d** — 1 super de verdade (ativa com o
-`super_meter` que já existe, invulnerabilidade inicial); **F5e** —
-balanceamento de verdade da frame data (os valores de hoje são
-placeholder consistente, não testado por jogo real).
+- Módulo `projectile.h/.cpp` novo: `Projectile` (posição/velocidade/
+  tempo de vida próprios, entidade independente do `Fighter`),
+  `SpawnProjectile`/`StepProjectile`/`ProjectileHitbox`/`DrawProjectile`.
+  Cada jogador tem no máx. 1 ativo por vez (`Match::p1_projectile`/
+  `p2_projectile`, slots fixos, sem alocação dinâmica).
+- `CharacterId` (`Warrior`/`Gunner`) novo em `Fighter`; P1=Warrior,
+  P2=Gunner (`main.cpp`). Kit quase idêntico — único diferenciador
+  mecânico: Gunner troca o agachado padrão por `MoveId::Projectile`
+  quando segura pesado agachado (`DetermineMove`); os outros 4 golpes
+  são compartilhados entre os dois (frame data por personagem de verdade
+  é trabalho da F5e — ver `docs/DECISOES.md`).
+  `ResetFighterForNewRound` corrigido pra preservar `character` através
+  do reset de round (senão Gunner virava Warrior no round 2).
+- `MoveId::Projectile` (6º golpe, `kMoveTable`): startup 8/recovery 20/
+  dano 12; seu campo `hitbox` na tabela é `{0,0,0,0}` (não usado —
+  `ResolveCombat` pula golpes `Projectile`, quem resolve é
+  `ResolveProjectileHit` contra o `Projectile` spawnado).
+  `game.cpp`/`MaybeSpawnProjectile` detecta a borda Startup→Active
+  (attack_phase antes/depois do `StepFighter` daquele tick) e spawna.
+- `ApplyMoveOutcome` (combat.cpp) extraído: dano/combo/reação/medidor
+  compartilhados entre `ResolveCombat` e `ResolveProjectileHit` — só o
+  pushback difere (projétil só empurra o alvo, sem corpo pra recuar).
+- Verificado via `UpdateMatch` real (fase `Fighting` forçada, pulando a
+  intro): Warrior com baixo+pesado continua no agachado normal; Gunner
+  com baixo+pesado dispara o projétil; projétil nasce na posição/direção
+  certas, atravessa a arena e acerta com dano correto (12), desativando
+  ao conectar. Descoberto (não bug): segurar baixo+ataque no MESMO tick
+  a partir de Idle dispara o golpe em pé, não o agachado — precisa
+  primeiro entrar em Crouch antes de atacar, como na maioria dos
+  fighting games reais (documentado em `docs/DECISOES.md`). Build limpo
+  nos dois presets, ASan sem leak.
+
+## Próxima fatia (F5d — Super de verdade)
+
+Ativa com `super_meter` (já existe e enche desde a F4c, mas nada ainda
+consome). Precisa: gatilho de input (provavelmente segurar 2 botões de
+ataque juntos, já que não há motion input tipo quarter-circle
+implementado — decisão a registrar), consumir o medidor (100→0 ao
+ativar), invulnerabilidade inicial (`Fighter` precisa de algo tipo
+`bool is_invulnerable` ou um novo `AttackPhase`/estado que `ResolveCombat`
+e `ResolveProjectileHit` ignorem), e um `MoveId::Super` na tabela com
+dano alto. Depois: **F5e** — balanceamento de verdade da frame data (os
+valores de hoje são placeholder consistente, não testado por jogo real;
+inclui dar ao Warrior algo que o distinga mais do Gunner além do
+projétil, se fizer sentido nessa passada).

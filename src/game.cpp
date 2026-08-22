@@ -46,6 +46,20 @@ void StartNextRound(Match& match, Fighter& p1, Fighter& p2) {
   match.end_reason = RoundEndReason::None;
   match.phase = RoundPhase::Intro;
   match.phase_timer = 0;
+  match.p1_projectile = Projectile{};
+  match.p2_projectile = Projectile{};
+}
+
+// Spawna o projétil no exato tick em que a fase Active começa (borda de
+// subida — `phase_before` é o attack_phase ANTES do StepFighter deste
+// tick). Só dispara se o golpe em andamento for MoveId::Projectile.
+void MaybeSpawnProjectile(const Fighter& fighter, Projectile& projectile, AttackPhase phase_before) {
+  if (fighter.current_move != MoveId::Projectile) return;
+  if (fighter.attack_phase != AttackPhase::Active || phase_before == AttackPhase::Active) return;
+
+  const float offset_x = fighter.facing_right ? kFighterHalfWidth : -kFighterHalfWidth;
+  const Vector2 origin{fighter.position.x + offset_x, fighter.position.y - 60.0f};
+  SpawnProjectile(projectile, origin, fighter.facing_right);
 }
 
 void DrawCenteredText(const char* text, int y, int font_size, Color color) {
@@ -88,11 +102,21 @@ void UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_in
 
     case RoundPhase::Fighting: {
       UpdateFacing(p1, p2);
+      const AttackPhase p1_phase_before = p1.attack_phase;
+      const AttackPhase p2_phase_before = p2.attack_phase;
       StepFighter(p1, p1_input);
       StepFighter(p2, p2_input);
+      MaybeSpawnProjectile(p1, match.p1_projectile, p1_phase_before);
+      MaybeSpawnProjectile(p2, match.p2_projectile, p2_phase_before);
+
+      StepProjectile(match.p1_projectile);
+      StepProjectile(match.p2_projectile);
+
       // Resolvido nos dois sentidos: qualquer jogador pode ser o atacante.
       ResolveCombat(p1, p2, p2_input);
       ResolveCombat(p2, p1, p1_input);
+      ResolveProjectileHit(match.p1_projectile, p1, p2, p2_input);
+      ResolveProjectileHit(match.p2_projectile, p2, p1, p1_input);
 
       match.timer_seconds -= static_cast<float>(kFixedDt);
 
@@ -169,4 +193,9 @@ void DrawHud(const Fighter& p1, const Fighter& p2, Color p1_color, Color p2_colo
   DrawStatBar(p2_bar_x, meter_y, kHudMeterHeight, static_cast<float>(p2.super_meter) / 100.0f,
               Color{15, 15, 50, 255}, SKYBLUE, /*anchor_right=*/true);
   DrawComboText(p2_bar_x, combo_y, p2.combo_hits, /*anchor_right=*/true);
+}
+
+void DrawProjectiles(const Match& match) {
+  DrawProjectile(match.p1_projectile);
+  DrawProjectile(match.p2_projectile);
 }

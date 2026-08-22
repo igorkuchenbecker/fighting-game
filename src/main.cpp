@@ -64,6 +64,7 @@ int main() {
 
   Fighter p1;
   Fighter p2;
+  p2.character = CharacterId::Gunner;  // P1 = Warrior (padrão), P2 = Gunner (tem projétil)
   ResetFighterForNewRound(p1, kArenaLeft + 250.0f);
   ResetFighterForNewRound(p2, kArenaRight - 250.0f);
   Match match;
@@ -94,6 +95,7 @@ int main() {
     DrawArena();
     DrawFighter(p1, kP1Color);
     DrawFighter(p2, kP2Color);
+    DrawProjectiles(match);
     DrawMatchOverlay(match);
     DrawHud(p1, p2, kP1Color, kP2Color);
     EndDrawing();

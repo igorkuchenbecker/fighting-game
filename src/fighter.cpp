@@ -15,9 +15,15 @@ constexpr float kGravity = 0.8f;
 // agachados); em pé, respeita a força do botão pressionado. Pesado dobra
 // de antiaéreo (hitbox alto, ver combat.cpp) em vez de ganhar um golpe
 // dedicado — ver docs/DECISOES.md.
-MoveId DetermineMove(FighterState state_before_attack, bool heavy_pressed, bool medium_pressed) {
+MoveId DetermineMove(CharacterId character, FighterState state_before_attack, bool heavy_pressed,
+                     bool medium_pressed) {
   if (state_before_attack == FighterState::Jump) return MoveId::JumpingLight;
-  if (state_before_attack == FighterState::Crouch) return MoveId::CrouchingLight;
+  if (state_before_attack == FighterState::Crouch) {
+    // Gunner troca o agachado padrão pelo projétil quando segura pesado;
+    // Warrior não tem projétil, sempre agachado normal.
+    if (character == CharacterId::Gunner && heavy_pressed) return MoveId::Projectile;
+    return MoveId::CrouchingLight;
+  }
   if (heavy_pressed) return MoveId::HeavyStanding;
   if (medium_pressed) return MoveId::MediumStanding;
   return MoveId::LightStanding;
@@ -190,7 +196,9 @@ void SetRoundOutcome(Fighter& fighter, bool won) {
 }
 
 void ResetFighterForNewRound(Fighter& fighter, float start_x) {
+  const CharacterId character = fighter.character;  // sobrevive ao reset, não é estado de round
   fighter = Fighter{};
+  fighter.character = character;
   fighter.position = Vector2{start_x, kFloorY};
 }
 
@@ -220,7 +228,8 @@ void StepFighter(Fighter& fighter, const InputFrame& input) {
     if (fighter.state == FighterState::Attack) {
       fighter.attack_phase = AttackPhase::Startup;
       fighter.current_attack_has_hit = false;
-      fighter.current_move = DetermineMove(previous_state, heavy_just_pressed, medium_just_pressed);
+      fighter.current_move =
+          DetermineMove(fighter.character, previous_state, heavy_just_pressed, medium_just_pressed);
     } else {
       fighter.attack_phase = AttackPhase::None;
     }
