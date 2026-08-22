@@ -14,6 +14,34 @@ constexpr int kHudPortraitSize = 40;
 constexpr int kHudMargin = 30;
 constexpr int kHudBarY = 70;
 
+Color FighterColor(const Fighter& fighter, Color base_color) {
+  if (IsInvulnerable(fighter)) return WHITE;  // janela de invulnerabilidade do super
+  if (fighter.state == FighterState::Attack) {
+    switch (fighter.attack_phase) {
+      case AttackPhase::Startup:
+        return ORANGE;
+      case AttackPhase::Active:
+        return RED;
+      case AttackPhase::Recovery:
+        return VIOLET;
+      case AttackPhase::None:
+        break;
+    }
+  }
+  if (fighter.state == FighterState::Hitstun) return YELLOW;
+  if (fighter.state == FighterState::Blockstun) return SKYBLUE;
+  if (fighter.state == FighterState::Knockdown) return DARKGRAY;
+  if (fighter.state == FighterState::Win) return GOLD;
+  if (fighter.state == FighterState::Lose) return DARKGRAY;
+  return base_color;
+}
+
+float FighterDrawHeight(const Fighter& fighter) {
+  if (fighter.state == FighterState::Knockdown) return kFighterKnockdownHeight;
+  if (fighter.state == FighterState::Crouch) return kFighterCrouchHeight;
+  return kFighterStandHeight;
+}
+
 void EndRound(Match& match, Fighter& p1, Fighter& p2) {
   const bool p1_won = p2.health <= p1.health;
   Fighter& winner = p1_won ? p1 : p2;
@@ -140,6 +168,14 @@ void UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_in
     case RoundPhase::MatchOver:
       break;  // fica parado; sem menu de "jogar de novo" ainda (fora do escopo da F4)
   }
+}
+
+void DrawFighter(const Fighter& fighter, Color base_color) {
+  const float height = FighterDrawHeight(fighter);
+  DrawRectangle(static_cast<int>(fighter.position.x - kFighterHalfWidth),
+                static_cast<int>(fighter.position.y - height),
+                static_cast<int>(kFighterHalfWidth * 2.0f), static_cast<int>(height),
+                FighterColor(fighter, base_color));
 }
 
 void DrawMatchOverlay(const Match& match) {

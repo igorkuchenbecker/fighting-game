@@ -22,7 +22,8 @@ Build limpo é lei: qualquer warning quebra a build (`-Werror`). O primeiro
 ## Como rodar
 
 ```sh
-./build/release/fighting_game   # ou ./build/debug/fighting_game
+./build/release/fighting_game              # partida normal
+./build/release/fighting_game --training   # modo treino (dummy infinito, F1: hit/hurtbox)
 ./build/release/fighting_game --selftest   # prova de determinismo, headless, sai 0/1
 ```
 
@@ -37,11 +38,12 @@ automáticos. Fecha com o botão de fechar da janela (ou Alt+F4).
 ## Mapa de arquivos
 
 ```
-CMakeLists.txt        — alvo fighting_game (8 .cpp), FetchContent do raylib (tag 5.5)
+CMakeLists.txt        — alvo fighting_game (10 .cpp), FetchContent do raylib (tag 5.5)
 CMakePresets.json      — presets debug/release (flags descritas acima)
-src/main.cpp           — orquestração fina: janela, loop de timestep fixo,
-                         leitura de input dos 2 jogadores, chama UpdateMatch
-                         e as funções de desenho (fighter/arena/projéteis/
+src/main.cpp           — orquestração fina: lê argv (--selftest/--training),
+                         senão janela + loop de timestep fixo, leitura de
+                         input dos 2 jogadores, chama UpdateMatch e as
+                         funções de desenho (fighter/arena/projéteis/
                          overlay/HUD)
 src/input.h/.cpp       — Direction8, InputFrame (dado puro), InputBuffer
                          (circular, 10 frames), ReadInputFrame (único ponto
@@ -64,12 +66,15 @@ src/stage.h/.cpp       — kScreenWidth/Height, kArenaLeft/Right/kFloorY, DrawAr
 src/game.h/.cpp        — RoundPhase, Match (inclui os 2 slots de Projectile),
                          kFixedDt, UpdateMatch (orquestra facing/física/
                          combate/projéteis durante Fighting + fluxo de
-                         round), DrawMatchOverlay (intro/timer/KO/resultado),
-                         DrawHud (vida/meter/combo/retrato por jogador),
-                         DrawProjectiles
+                         round), DrawFighter/DrawMatchOverlay (intro/timer/
+                         KO/resultado)/DrawHud (vida/meter/combo/retrato)/
+                         DrawProjectiles — camada de apresentação da partida
 src/selftest.h/.cpp    — RunSelfTest: harness de --selftest (LCG de seed
                          fixa + hash FNV-1a do estado final, 2 execuções
                          comparadas, headless)
+src/training.h/.cpp    — RunTrainingMode: loop do modo treino (dummy
+                         infinito, tecla F1 pra hit/hurtbox, overlay de
+                         frame data sempre visível)
 docs/DECISOES.md       — log de decisões (data | decisão | motivo | alternativas)
 AGENTS.md / CLAUDE.md  — este arquivo (symlink)
 assets/                — ainda não existe; só entra na F5+ (spritesheets) e
@@ -276,20 +281,47 @@ invulnerabilidade, frame data balanceada pelos princípios do gênero
   limpo nos dois presets, ASan sem leak (caminho normal do jogo também
   reverificado com o mesmo truque de sempre).
 
-## Próxima fatia (F6b — Modo treino)
+**F6b — Modo treino (sub-fatia da F6, última): CONCLUÍDA.**
 
-Dummy infinito: decisão a tomar sobre se ele "não morre" (vida nunca
-chega a 0, sempre volta a 100) ou só "não conta pra vitória" (pode
-tomar KO mas o modo treino não fecha round/partida — provavelmente um
-`RoundPhase`/flag nova em `Match`, ou um modo totalmente à parte do
-`UpdateMatch` normal). Tecla pra exibir hitboxes/hurtboxes
-(`FighterHitbox`/`FighterHurtbox`/`ProjectileHitbox` já existem em
-combat.h/projectile.h, só falta desenhar os retângulos por cima quando
-a tecla estiver ativa). Overlay de frame data (startup/active/recovery
-do golpe atual — já tudo disponível via `GetMoveData(fighter.current_move)`,
-só falta desenhar texto). Depois da F6b, a F6 está completa (o item
-"corrigir tudo que o sanitizer acusar" já vem sendo cumprido a cada
-fatia — zero leaks/UB detectados até aqui, incluindo o `--selftest`) e
-a próxima fase é a **F7** (spritesheets reais se existirem em `assets/`
-— fallback pros retângulos se não —, áudio opcional, IA dummy básica
-com seed, se sobrar fôlego).
+- Módulo `training.h/.cpp` novo: `RunTrainingMode()` — loop próprio
+  (não usa `Match`/`UpdateMatch`), P1 controla, P2 é um dummy sem input
+  que nunca ataca. Ativado por `--training` (`main.cpp` já cuida de
+  `InitWindow`/`CloseWindow`, `RunTrainingMode` só roda até
+  `WindowShouldClose`).
+- Dummy "infinito": `if (dummy.health <= 0) ResetFighterForNewRound(...)`
+  — vida sempre volta a 100, sem round/timer/KO nenhum.
+- Tecla F1 (`IsKeyPressed`, fora do contrato de `InputFrame`) alterna
+  hit/hurtbox: hurtbox sempre verde quando ligado, hitbox vermelho só
+  durante a fase Active (`FighterHitbox`/`FighterHurtbox`, já existiam
+  em combat.h, só faltava desenhar).
+  Overlay de frame data do golpe do P1 (`GetMoveData(current_move)`)
+  sempre visível, sem toggle — ver `docs/DECISOES.md`.
+- `DrawFighter`/`FighterColor`/`FighterDrawHeight` promovidos de
+  `main.cpp` (namespace anônimo, inacessíveis de fora) pra `game.cpp`
+  (só `DrawFighter` pública) — o treino também precisa desenhar
+  lutadores, sem duplicar a lógica.
+- Verificado com `--training` real: aproxima e ataca o dummy em rajadas
+  (scripted, revertido antes do commit) até zerar a vida — respawn
+  confirmado (`TraceLog` temporário mostrou a vida voltando a 100).
+  Build limpo nos dois presets; ASan sem leak nos dois modos (normal e
+  `--training`, saída limpa forçada com limite de frames temporário);
+  `--selftest` re-verificado depois do refactor de `DrawFighter` — mesmo
+  hash de antes (`49c41802b252ccc0`), confirma que só mudou onde o
+  código mora, não o comportamento.
+
+**F6 (Treino + robustez) está COMPLETA.** "Corrigir tudo que o
+sanitizer acusar" foi cumprido continuamente, fatia a fatia, desde a F0
+— zero leaks/UB detectados em qualquer momento da F0 à F6, incluindo o
+próprio `--selftest`.
+
+## Próxima fatia (F7 — Polimento, se sobrar fôlego)
+
+Última fase do roadmap. Spritesheets reais se existirem em `assets/`
+(fallback automático pros retângulos de código se não existirem — regra
+já vigente desde a F0, só falta o carregamento condicional de verdade);
+áudio opcional via raylib audio (arquivos em `assets/audio/`, silencioso
+se ausentes); IA dummy básica com seed (anda, bloqueia, bate aleatório —
+primeiro uso real de RNG no projeto; precisa da seed explícita que o
+requisito duro já exige, nunca `rand()`/`time()` cru). Como o roadmap
+diz "se sobrar fôlego", essa fase é a mais opcional de todas — o jogo já
+está completo e jogável (F0–F6) sem ela.

@@ -40,6 +40,11 @@ void UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_in
 
 void DrawMatchOverlay(const Match& match);
 
+// Desenha o retângulo do lutador (cor por estado/fase de ataque, altura
+// por estado — agachado/caído). `base_color` distingue P1/P2 (dois tons,
+// exigido enquanto o visual for retângulos de código nas F0-4).
+void DrawFighter(const Fighter& fighter, Color base_color);
+
 // Barras de vida/medidor de super, contador de combo e retratos
 // placeholder de cada jogador. `p1_color`/`p2_color` são os mesmos tons
 // usados pra desenhar os lutadores (mantém P1/P2 reconhecíveis no HUD).
