@@ -45,7 +45,10 @@ enum class MoveId {
   CrouchingLight,
   JumpingLight,
   Projectile,
+  Super,
 };
+
+constexpr int kSuperMeterMax = 100;
 
 // Só 2 personagens por ora (F5); diferença mecânica principal é o Gunner
 // ter o projétil (agachado+pesado) — ver docs/DECISOES.md.
@@ -96,6 +99,12 @@ void SetRoundOutcome(Fighter& fighter, bool won);
 // Chamado pelo módulo de combate quando um golpe acerta/é bloqueado — ver
 // requisito duro "medidor ganha ao dar/tomar dano".
 void AddSuperMeter(Fighter& fighter, int amount);
+
+// true durante o Startup do super (invulnerabilidade inicial — requisito
+// duro "ativa super com invulnerabilidade inicial"). Usado pelo módulo de
+// combate pra ignorar hits contra o lutador nesse intervalo, e pelo
+// render pra dar feedback visual da janela de invuln.
+bool IsInvulnerable(const Fighter& fighter);
 
 // Reseta um lutador pro início de um novo round (posição, vida, estado).
 void ResetFighterForNewRound(Fighter& fighter, float start_x);

@@ -28,7 +28,9 @@ Build limpo é lei: qualquer warning quebra a build (`-Werror`). O primeiro
 Abre janela 1280×720. P1 (Warrior) = setas + espaço/enter/shift-direito
 (leve/médio/pesado) ou gamepad slot 0; P2 (Gunner) = WASD +
 ctrl-esquerdo/shift-esquerdo/Q, ou gamepad slot 1 — Gunner solta um
-projétil segurando baixo+pesado. Partida best-of-3 com intro/timer/KO
+projétil segurando baixo+pesado; qualquer um dos dois ativa o super
+segurando médio+pesado juntos com o medidor cheio (fica branco/
+invulnerável durante o startup). Partida best-of-3 com intro/timer/KO
 automáticos. Fecha com o botão de fechar da janela (ou Alt+F4).
 
 ## Mapa de arquivos
@@ -211,16 +213,40 @@ Ordem de extração do prompt (`input, fighter, combat, stage, game`) completa.
   fighting games reais (documentado em `docs/DECISOES.md`). Build limpo
   nos dois presets, ASan sem leak.
 
-## Próxima fatia (F5d — Super de verdade)
+**F5d — Super de verdade (sub-fatia da F5): CONCLUÍDA.**
 
-Ativa com `super_meter` (já existe e enche desde a F4c, mas nada ainda
-consome). Precisa: gatilho de input (provavelmente segurar 2 botões de
-ataque juntos, já que não há motion input tipo quarter-circle
-implementado — decisão a registrar), consumir o medidor (100→0 ao
-ativar), invulnerabilidade inicial (`Fighter` precisa de algo tipo
-`bool is_invulnerable` ou um novo `AttackPhase`/estado que `ResolveCombat`
-e `ResolveProjectileHit` ignorem), e um `MoveId::Super` na tabela com
-dano alto. Depois: **F5e** — balanceamento de verdade da frame data (os
-valores de hoje são placeholder consistente, não testado por jogo real;
-inclui dar ao Warrior algo que o distinga mais do Gunner além do
-projétil, se fizer sentido nessa passada).
+- `MoveId::Super` (7º golpe, `kMoveTable`): startup 10/active 8/recovery
+  30/dano 35 — mais forte e mais arriscado que os normais.
+- Gatilho: segurar médio+pesado juntos (`wants_super` em `StepFighter`)
+  com `super_meter >= kSuperMeterMax(100)`. Prioridade máxima em
+  `DetermineMove` (checado antes de Jump/Crouch/força do botão — super
+  sempre vence se o medidor tá cheio, de qualquer estado de ataque).
+  Consome o medidor inteiro (100→0) ao ativar.
+- `IsInvulnerable(fighter)` (fighter.h, pública): true só durante
+  `AttackPhase::Startup` do `Super` — "invulnerabilidade inicial" do
+  requisito duro, não o golpe inteiro (fica exposto na fase Active).
+  `ResolveCombat`/`ResolveProjectileHit` ignoram o defensor invulnerável;
+  `main.cpp` pinta o lutador de branco durante a invuln (feedback visual).
+- Verificado via `StepFighter`/`ResolveCombat` reais: médio+pesado sem
+  medidor cheio vira golpe normal (não Super); com medidor cheio vira
+  Super e zera o medidor; um ataque do oponente durante o startup não
+  causa dano (invuln funcionando); o mesmo ataque, reenviado já na fase
+  Active do super (sem invuln), conecta normalmente. Build limpo nos
+  dois presets, ASan sem leak.
+
+## Próxima fatia (F5e — Balanceamento de verdade)
+
+Última sub-fatia da F5. Os valores de frame data de hoje (startup/active/
+recovery/dano/etc. de todos os 7 golpes) são placeholder consistente
+("pesado lento/forte, leve rápido/fraco" seguido em regra geral), mas
+nunca foram jogados/ajustados por feel real — só verificados
+matematicamente nos smoke tests. Essa fatia é sobre jogar de verdade
+(ou simular partidas mais longas) e ajustar números: startup/recovery
+muito genéricos hoje, hitboxes podem precisar de ajuste fino de alcance,
+o custo/benefício do super (dano 35 por startup 10/recovery 30) precisa
+de calibragem. Também é o momento natural pra decidir se o Warrior
+ganha algo que o distinga mais do Gunner além de não ter projétil (ver
+`docs/DECISOES.md` — decisão em aberto, não urgente). Depois da F5e, a
+F5 está completa e a próxima fase é a **F6** (modo treino, overlay de
+frame data, flag `--selftest` de determinismo, corrigir tudo que o
+sanitizer acusar).

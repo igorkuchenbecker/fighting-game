@@ -22,6 +22,7 @@ constexpr Color kP2Color = DARKBLUE;
 // `base_color` distingue P1/P2 (dois tons, exigido enquanto o visual for
 // retângulos de código nas F0-4); as fases do ataque sobrepõem essa cor.
 Color FighterColor(const Fighter& fighter, Color base_color) {
+  if (IsInvulnerable(fighter)) return WHITE;  // janela de invulnerabilidade do super
   if (fighter.state == FighterState::Attack) {
     switch (fighter.attack_phase) {
       case AttackPhase::Startup:

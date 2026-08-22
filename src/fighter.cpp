@@ -16,7 +16,10 @@ constexpr float kGravity = 0.8f;
 // de antiaéreo (hitbox alto, ver combat.cpp) em vez de ganhar um golpe
 // dedicado — ver docs/DECISOES.md.
 MoveId DetermineMove(CharacterId character, FighterState state_before_attack, bool heavy_pressed,
-                     bool medium_pressed) {
+                     bool medium_pressed, bool wants_super, int super_meter) {
+  // Super tem prioridade sobre qualquer outro golpe: segurar médio+pesado
+  // com o medidor cheio sempre vira Super, não importa o estado/força.
+  if (wants_super && super_meter >= kSuperMeterMax) return MoveId::Super;
   if (state_before_attack == FighterState::Jump) return MoveId::JumpingLight;
   if (state_before_attack == FighterState::Crouch) {
     // Gunner troca o agachado padrão pelo projétil quando segura pesado;
@@ -203,7 +206,12 @@ void ResetFighterForNewRound(Fighter& fighter, float start_x) {
 }
 
 void AddSuperMeter(Fighter& fighter, int amount) {
-  fighter.super_meter = std::clamp(fighter.super_meter + amount, 0, 100);
+  fighter.super_meter = std::clamp(fighter.super_meter + amount, 0, kSuperMeterMax);
+}
+
+bool IsInvulnerable(const Fighter& fighter) {
+  return fighter.state == FighterState::Attack && fighter.current_move == MoveId::Super &&
+         fighter.attack_phase == AttackPhase::Startup;
 }
 
 void StepFighter(Fighter& fighter, const InputFrame& input) {
@@ -218,6 +226,11 @@ void StepFighter(Fighter& fighter, const InputFrame& input) {
   const bool medium_just_pressed = (just_pressed & kButtonMedium) != 0;
   const bool heavy_just_pressed = (just_pressed & kButtonHeavy) != 0;
   const bool any_attack_just_pressed = light_just_pressed || medium_just_pressed || heavy_just_pressed;
+  // Segurar médio+pesado juntos (não precisa dos dois no mesmo tick, só
+  // os dois DOWN agora) é o gatilho do super — sem motion input tipo
+  // quarter-circle implementado ainda, ver docs/DECISOES.md.
+  const bool wants_super = (input.buttons & (kButtonMedium | kButtonHeavy)) ==
+                            (kButtonMedium | kButtonHeavy);
 
   const FighterState previous_state = fighter.state;
   fighter.state = ComputeNextState(fighter, wants_left, wants_right, wants_up, wants_down,
@@ -228,8 +241,11 @@ void StepFighter(Fighter& fighter, const InputFrame& input) {
     if (fighter.state == FighterState::Attack) {
       fighter.attack_phase = AttackPhase::Startup;
       fighter.current_attack_has_hit = false;
-      fighter.current_move =
-          DetermineMove(fighter.character, previous_state, heavy_just_pressed, medium_just_pressed);
+      fighter.current_move = DetermineMove(fighter.character, previous_state, heavy_just_pressed,
+                                            medium_just_pressed, wants_super, fighter.super_meter);
+      if (fighter.current_move == MoveId::Super) {
+        fighter.super_meter = 0;  // consome o medidor inteiro ao ativar
+      }
     } else {
       fighter.attack_phase = AttackPhase::None;
     }

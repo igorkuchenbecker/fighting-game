@@ -73,6 +73,9 @@ const MoveData& GetMoveData(MoveId move) {
       // Projectile — hitbox aqui não é usado (ResolveCombat pula golpes
       // Projectile; quem colide é ProjectileHitbox, ver projectile.h)
       {8, 1, 20, 12, 2, 16, 9, 12.0f, 6.0f, Rectangle{0.0f, 0.0f, 0.0f, 0.0f}},
+      // Super — startup é a janela de invulnerabilidade (ver
+      // IsInvulnerable em fighter.cpp); dano alto, recovery pesado
+      {10, 8, 30, 35, 5, 30, 18, 20.0f, 10.0f, Rectangle{kFighterHalfWidth, -100.0f, 70.0f, 90.0f}},
   };
   return kMoveTable[static_cast<int>(move)];
 }
@@ -98,6 +101,7 @@ void ResolveCombat(Fighter& attacker, Fighter& defender, const InputFrame& defen
   }
   if (attacker.current_attack_has_hit) return;
   if (attacker.current_move == MoveId::Projectile) return;  // resolvido por ResolveProjectileHit
+  if (IsInvulnerable(defender)) return;  // startup do super do defensor
 
   const MoveId move = attacker.current_move;
   if (!BoxesOverlap(FighterHitbox(attacker, move), FighterHurtbox(defender))) return;
@@ -128,6 +132,7 @@ void ResolveCombat(Fighter& attacker, Fighter& defender, const InputFrame& defen
 void ResolveProjectileHit(Projectile& projectile, Fighter& owner, Fighter& target,
                            const InputFrame& target_input) {
   if (!projectile.active) return;
+  if (IsInvulnerable(target)) return;  // startup do super do alvo
   if (!BoxesOverlap(ProjectileHitbox(projectile), FighterHurtbox(target))) return;
 
   projectile.active = false;  // só acerta 1 vez
