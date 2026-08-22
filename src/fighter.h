@@ -2,6 +2,8 @@
 
 #include "raylib.h"
 
+#include <cstdint>
+
 #include "input.h"
 #include "stage.h"
 
@@ -30,6 +32,12 @@ enum class FighterState {
 
 enum class AttackPhase { None, Startup, Active, Recovery };
 
+// Todo golpe existente vive na tabela central de frame data (combat.cpp)
+// — nada de número mágico de dano/frame/hitbox espalhado pelo resto do
+// código (requisito duro). Mora aqui (não em combat.h) porque `Fighter`
+// precisa guardar qual golpe está em andamento.
+enum class MoveId { LightStanding, MediumStanding, HeavyStanding, CrouchingLight };
+
 struct Fighter {
   Vector2 position{(kArenaLeft + kArenaRight) / 2.0f, kFloorY};
   Vector2 velocity{0.0f, 0.0f};
@@ -37,9 +45,10 @@ struct Fighter {
   bool facing_right = true;
   FighterState state = FighterState::Idle;
   AttackPhase attack_phase = AttackPhase::None;
+  MoveId current_move = MoveId::LightStanding;  // golpe em andamento (só válido durante Attack)
   int state_timer = 0;               // frames decorridos no estado/fase atual
   int stun_target_frames = 0;        // duração alvo de Hitstun/Blockstun
-  bool attack_button_held = false;   // estado do frame anterior, p/ detectar borda de subida
+  std::uint8_t buttons_held = 0;     // bitmask do frame anterior, p/ detectar borda de subida
   bool current_attack_has_hit = false;  // trava o golpe atual em 1 acerto só
   int health = 100;
   int combo_hits = 0;   // combo em andamento contra este lutador (reseta ao sair de Hitstun)

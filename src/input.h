@@ -19,6 +19,8 @@ enum class Direction8 : std::uint8_t {
 
 enum ButtonBit : std::uint8_t {
   kButtonLight = 1 << 0,
+  kButtonMedium = 1 << 1,
+  kButtonHeavy = 1 << 2,
 };
 
 struct InputFrame {
@@ -34,9 +36,11 @@ bool DirectionHasDown(Direction8 direction);
 // Único ponto que toca a API de input do raylib (teclado + gamepad).
 // Chamado uma vez por iteração do loop externo — nunca de dentro do step
 // de simulação. `gamepad` é o índice do gamepad (0, 1, ...); se não
-// houver gamepad conectado nesse slot, só o teclado é considerado.
-InputFrame ReadInputFrame(int key_up, int key_down, int key_left, int key_right, int key_attack,
-                           int gamepad);
+// houver gamepad conectado nesse slot, só o teclado é considerado. No
+// gamepad, leve/médio/pesado mapeiam pros 3 botões de face inferior/
+// direito/esquerdo (A/B/X num padrão Xbox).
+InputFrame ReadInputFrame(int key_up, int key_down, int key_left, int key_right, int key_light,
+                           int key_medium, int key_heavy, int gamepad);
 
 // Buffer circular de InputFrame por jogador (pré-requisito de netcode:
 // permite consultar o histórico recente sem reler input do passado).

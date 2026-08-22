@@ -117,18 +117,45 @@ Ordem de extração do prompt (`input, fighter, combat, stage, game`) completa.
 - Build limpo nos dois presets, ASan sem leak do nosso código em toda a
   F4.
 
-## Próxima fatia (F5 — Movesets)
+**F5a — Moveset básico (sub-fatia da F5): CONCLUÍDA.**
 
-2 personagens distintos (frame data e talvez hitbox/dimensões diferentes
-por personagem — hoje `Fighter` é um struct único sem campo de
-"personagem"; provavelmente precisa de um `CharacterId`/tabela de moves
-por personagem em vez do `kMoveTable` fixo de hoje). Cada um com leve/
-médio/pesado (`MoveId` cresce, vira tabela de verdade com múltiplas
-entradas — hoje só tem `LightAttack`), antiaéreo, golpe agachado, salto
-com ataque (hoje ataque é bloqueado no ar, ver F2/F3), 1 projétil
-(personagem 2 — precisa de entidade nova tipo `Projectile`, provavelmente
-um módulo próprio), 1 super de verdade (ativa com o `super_meter` que já
-existe, dando invulnerabilidade inicial — primeiro uso real do medidor).
-Frame data balanceado de verdade (pesado lento/forte, leve rápido/fraco)
-substitui os valores placeholder de `kMoveTable`. É bem provável que essa
-fatia precise ser dividida em sub-fatias como a F4 foi.
+- `MoveId` (4 golpes: `LightStanding`/`MediumStanding`/`HeavyStanding`/
+  `CrouchingLight`) movido pra `fighter.h`; `Fighter::current_move` novo,
+  decidido por `DetermineMove` (fighter.cpp) no instante em que `Attack`
+  é acionado — agachado sempre vira `CrouchingLight` independente do
+  botão, em pé respeita leve/médio/pesado.
+- `kMoveTable` (combat.cpp) agora tem 4 entradas com frame data distinta
+  (pesado mais lento/forte: startup 13/dano 18; leve mais rápido/fraco:
+  startup 6/dano 8). `HeavyStanding` dobra de antiaéreo: hitbox alto e
+  alongado verticalmente (offset y −170, altura 110), sem golpe/input
+  dedicado.
+- `Fighter::buttons_held` (bitmask) substitui o antigo bool único — borda
+  de subida detectada por bit (`buttons_down & ~buttons_held`), suporta
+  os 3 botões de ataque.
+- `fighter.cpp` passou a incluir `combat.h` (`AdvanceAttackPhase` lê
+  `GetMoveData(fighter.current_move)` pra saber startup/active/recovery
+  do golpe atual, já que cada golpe agora tem duração própria).
+- Mapa de teclas expandido: P1 leve=Espaço/médio=Enter/pesado=Shift-dir;
+  P2 leve=Ctrl-esq/médio=Shift-esq/pesado=Q; gamepad usa os 3 botões de
+  face inferior/direito/esquerdo.
+- Verificado via `StepFighter` real (não só `ResolveCombat` direto, pra
+  provar que `DetermineMove` funciona no caminho de jogo de verdade):
+  cada botão (+ agachado) escolhe o `MoveId` certo; golpe antiaéreo
+  testado isoladamente contra um defensor reposicionado perto do ápice
+  do pulo — conectou com o dano correto (18). Build limpo nos dois
+  presets, ASan sem leak (saída limpa forçada com limite de frames
+  temporário, já que o loop real só fecha por `WindowShouldClose`).
+
+## Próxima fatia (F5b — Salto com ataque + 2º personagem)
+
+Ataque aéreo de verdade (hoje `ComputeNextState`'s grupo Idle/Walk/Crouch
+não inclui `Jump`, então não há como atacar no ar — precisa decidir se
+vira um 5º `MoveId` ou reusa `LightStanding` com hitbox diferente quando
+`!is_grounded`). 2 personagens distintos: provavelmente um `CharacterId`
+em `Fighter` e `kMoveTable` vira uma tabela por personagem (hoje é fixa,
+um golpe = um índice global). 1 projétil (personagem 2) — precisa de uma
+entidade nova tipo `Projectile` com sua própria hitbox/velocidade,
+provavelmente um `src/projectile.h/.cpp`. Depois: **F5c** — 1 super de
+verdade (ativa com o `super_meter` que já existe, invulnerabilidade
+inicial); **F5d** — balanceamento de verdade da frame data (os valores de
+hoje são placeholder consistente, não testado por jogo real).

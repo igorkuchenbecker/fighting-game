@@ -73,10 +73,13 @@ int main() {
   double accumulator = 0.0;
 
   while (!WindowShouldClose()) {
-    // P1: setas + espaço, ou gamepad 0. P2: WASD + ctrl esquerdo, ou
-    // gamepad 1. Único ponto que toca IsKeyDown/gamepad (via ReadInputFrame).
-    p1_buffer.Push(ReadInputFrame(KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_SPACE, 0));
-    p2_buffer.Push(ReadInputFrame(KEY_W, KEY_S, KEY_A, KEY_D, KEY_LEFT_CONTROL, 1));
+    // P1: setas + espaço/enter/shift-direito (leve/médio/pesado), ou
+    // gamepad 0. P2: WASD + ctrl-esquerdo/shift-esquerdo/Q, ou gamepad 1.
+    // Único ponto que toca IsKeyDown/gamepad (via ReadInputFrame).
+    p1_buffer.Push(ReadInputFrame(KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_SPACE, KEY_ENTER,
+                                   KEY_RIGHT_SHIFT, 0));
+    p2_buffer.Push(ReadInputFrame(KEY_W, KEY_S, KEY_A, KEY_D, KEY_LEFT_CONTROL, KEY_LEFT_SHIFT,
+                                   KEY_Q, 1));
 
     accumulator += GetFrameTime();
     // Simulação avança em passos fixos de 1/60s, desacoplada do delta-time

@@ -2,17 +2,25 @@
 
 #include <algorithm>
 
+#include "combat.h"  // GetMoveData: fighter.cpp só LÊ a tabela central de frame data
+
 namespace {
 
 constexpr float kMoveSpeed = 6.0f;
 constexpr float kJumpVelocity = -16.0f;
 constexpr float kGravity = 0.8f;
 
-// Frame data do ataque neutro — única normal existente até a F3, quando
-// vira uma tabela central de golpes (startup/active/recovery/dano/etc.).
-constexpr int kAttackStartupFrames = 6;
-constexpr int kAttackActiveFrames = 4;
-constexpr int kAttackRecoveryFrames = 10;
+// Decide qual golpe entra quando o ataque é acionado: agachado sempre usa
+// o golpe baixo (1 golpe agachado só, não uma matriz leve/médio/pesado
+// agachados); em pé, respeita a força do botão pressionado. Pesado dobra
+// de antiaéreo (hitbox alto, ver combat.cpp) em vez de ganhar um golpe
+// dedicado — ver docs/DECISOES.md.
+MoveId DetermineMove(FighterState state_before_attack, bool heavy_pressed, bool medium_pressed) {
+  if (state_before_attack == FighterState::Crouch) return MoveId::CrouchingLight;
+  if (heavy_pressed) return MoveId::HeavyStanding;
+  if (medium_pressed) return MoveId::MediumStanding;
+  return MoveId::LightStanding;
+}
 
 // Decide o próximo estado da FSM a partir do estado atual + fatos do
 // frame (direção pedida, borda de subida do botão de ataque, se está no
@@ -70,22 +78,23 @@ FighterState ComputeNextState(const Fighter& fighter, bool wants_left, bool want
 }
 
 void AdvanceAttackPhase(Fighter& fighter) {
+  const MoveData& data = GetMoveData(fighter.current_move);
   ++fighter.state_timer;
   switch (fighter.attack_phase) {
     case AttackPhase::Startup:
-      if (fighter.state_timer >= kAttackStartupFrames) {
+      if (fighter.state_timer >= data.startup_frames) {
         fighter.attack_phase = AttackPhase::Active;
         fighter.state_timer = 0;
       }
       break;
     case AttackPhase::Active:
-      if (fighter.state_timer >= kAttackActiveFrames) {
+      if (fighter.state_timer >= data.active_frames) {
         fighter.attack_phase = AttackPhase::Recovery;
         fighter.state_timer = 0;
       }
       break;
     case AttackPhase::Recovery:
-      if (fighter.state_timer >= kAttackRecoveryFrames) {
+      if (fighter.state_timer >= data.recovery_frames) {
         fighter.attack_phase = AttackPhase::None;
         fighter.state_timer = 0;
       }
@@ -191,19 +200,23 @@ void StepFighter(Fighter& fighter, const InputFrame& input) {
   const bool wants_up = DirectionHasUp(input.direction);
   const bool wants_down = DirectionHasDown(input.direction);
 
-  const bool attack_down = (input.buttons & kButtonLight) != 0;
-  const bool attack_just_pressed = attack_down && !fighter.attack_button_held;
-  fighter.attack_button_held = attack_down;
+  const auto just_pressed = static_cast<std::uint8_t>(input.buttons & ~fighter.buttons_held);
+  fighter.buttons_held = input.buttons;
+  const bool light_just_pressed = (just_pressed & kButtonLight) != 0;
+  const bool medium_just_pressed = (just_pressed & kButtonMedium) != 0;
+  const bool heavy_just_pressed = (just_pressed & kButtonHeavy) != 0;
+  const bool any_attack_just_pressed = light_just_pressed || medium_just_pressed || heavy_just_pressed;
 
   const FighterState previous_state = fighter.state;
-  fighter.state =
-      ComputeNextState(fighter, wants_left, wants_right, wants_up, wants_down, attack_just_pressed);
+  fighter.state = ComputeNextState(fighter, wants_left, wants_right, wants_up, wants_down,
+                                    any_attack_just_pressed);
 
   if (fighter.state != previous_state) {
     fighter.state_timer = 0;
     if (fighter.state == FighterState::Attack) {
       fighter.attack_phase = AttackPhase::Startup;
       fighter.current_attack_has_hit = false;
+      fighter.current_move = DetermineMove(previous_state, heavy_just_pressed, medium_just_pressed);
     } else {
       fighter.attack_phase = AttackPhase::None;
     }

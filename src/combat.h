@@ -5,10 +5,9 @@
 #include "fighter.h"
 #include "input.h"
 
-// Todo golpe existente vive nesta tabela — nada de número mágico de
+// `MoveId` mora em fighter.h (Fighter::current_move precisa dele). Todo
+// golpe existente vive na tabela abaixo — nada de número mágico de
 // dano/frame/hitbox espalhado pelo resto do código (requisito duro).
-enum class MoveId { LightAttack };
-
 struct MoveData {
   int startup_frames;
   int active_frames;

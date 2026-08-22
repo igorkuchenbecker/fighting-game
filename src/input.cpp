@@ -68,16 +68,24 @@ Direction8 ReadDirection8Gamepad(int gamepad) {
 
 }  // namespace
 
-InputFrame ReadInputFrame(int key_up, int key_down, int key_left, int key_right, int key_attack,
-                           int gamepad) {
+InputFrame ReadInputFrame(int key_up, int key_down, int key_left, int key_right, int key_light,
+                           int key_medium, int key_heavy, int gamepad) {
   const Direction8 keyboard_direction = ReadDirection8Keyboard(key_up, key_down, key_left, key_right);
   const Direction8 gamepad_direction = ReadDirection8Gamepad(gamepad);
 
   InputFrame frame;
   frame.direction = gamepad_direction != Direction8::Neutral ? gamepad_direction : keyboard_direction;
 
-  const bool attack_down = IsKeyDown(key_attack) ||
-      (IsGamepadAvailable(gamepad) && IsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_DOWN));
-  frame.buttons = attack_down ? static_cast<std::uint8_t>(kButtonLight) : static_cast<std::uint8_t>(0);
+  const bool gamepad_available = IsGamepadAvailable(gamepad);
+  const bool light_down = IsKeyDown(key_light) ||
+      (gamepad_available && IsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_DOWN));
+  const bool medium_down = IsKeyDown(key_medium) ||
+      (gamepad_available && IsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT));
+  const bool heavy_down = IsKeyDown(key_heavy) ||
+      (gamepad_available && IsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_LEFT));
+
+  frame.buttons = static_cast<std::uint8_t>((light_down ? kButtonLight : 0) |
+                                             (medium_down ? kButtonMedium : 0) |
+                                             (heavy_down ? kButtonHeavy : 0));
   return frame;
 }

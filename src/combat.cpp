@@ -33,11 +33,20 @@ float ComboDamageScale(int combo_hits) {
 }  // namespace
 
 const MoveData& GetMoveData(MoveId move) {
+  // Campos: startup, active, recovery, dano, chip, hitstun, blockstun,
+  // pushback (hit/block), hitbox (offset x/y da posição do atacante,
+  // largura, altura — assumindo facing_right). Ordem tem que bater com
+  // MoveId (fighter.h). Leve rápido/fraco, pesado lento/forte (ainda
+  // placeholder — balanceamento de verdade é F5 mais adiante).
   static constexpr MoveData kMoveTable[] = {
-      // LightAttack: startup, active, recovery, dano, chip, hitstun,
-      // blockstun, pushback (hit/block), hitbox (offset da posição do
-      // atacante, largura, altura — assumindo facing_right).
+      // LightStanding
       {6, 4, 10, 8, 1, 14, 8, 10.0f, 6.0f, Rectangle{kFighterHalfWidth, -90.0f, 50.0f, 30.0f}},
+      // MediumStanding
+      {9, 5, 14, 13, 2, 18, 10, 12.0f, 7.0f, Rectangle{kFighterHalfWidth, -95.0f, 60.0f, 35.0f}},
+      // HeavyStanding — dobra de antiaéreo: hitbox alto/alongado verticalmente
+      {13, 6, 20, 18, 3, 24, 14, 16.0f, 9.0f, Rectangle{kFighterHalfWidth, -170.0f, 55.0f, 110.0f}},
+      // CrouchingLight — golpe agachado, hitbox baixo
+      {5, 4, 9, 6, 1, 12, 7, 8.0f, 5.0f, Rectangle{kFighterHalfWidth, -40.0f, 45.0f, 30.0f}},
   };
   return kMoveTable[static_cast<int>(move)];
 }
@@ -63,11 +72,11 @@ void ResolveCombat(Fighter& attacker, Fighter& defender, const InputFrame& defen
   }
   if (attacker.current_attack_has_hit) return;
 
-  constexpr MoveId kMove = MoveId::LightAttack;  // único golpe existente até a F5
-  if (!BoxesOverlap(FighterHitbox(attacker, kMove), FighterHurtbox(defender))) return;
+  const MoveId move = attacker.current_move;
+  if (!BoxesOverlap(FighterHitbox(attacker, move), FighterHurtbox(defender))) return;
 
   attacker.current_attack_has_hit = true;
-  const MoveData& data = GetMoveData(kMove);
+  const MoveData& data = GetMoveData(move);
 
   const bool attacker_is_to_my_right = attacker.position.x >= defender.position.x;
   const bool defender_holds_away = attacker_is_to_my_right
