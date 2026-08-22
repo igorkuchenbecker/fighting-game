@@ -1,8 +1,11 @@
 #include "raylib.h"
 
+#include <cstring>
+
 #include "fighter.h"
 #include "game.h"
 #include "input.h"
+#include "selftest.h"
 #include "stage.h"
 
 #if defined(__SANITIZE_ADDRESS__)
@@ -59,7 +62,13 @@ void DrawFighter(const Fighter& fighter, Color base_color) {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+  for (int i = 1; i < argc; ++i) {
+    if (std::strcmp(argv[i], "--selftest") == 0) {
+      return RunSelfTest();  // headless: sem InitWindow, só a simulação
+    }
+  }
+
   InitWindow(kScreenWidth, kScreenHeight, "Fighting Game");
   SetTargetFPS(60);
 

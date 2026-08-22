@@ -23,6 +23,7 @@ Build limpo é lei: qualquer warning quebra a build (`-Werror`). O primeiro
 
 ```sh
 ./build/release/fighting_game   # ou ./build/debug/fighting_game
+./build/release/fighting_game --selftest   # prova de determinismo, headless, sai 0/1
 ```
 
 Abre janela 1280×720. P1 (Warrior) = setas + espaço/enter/shift-direito
@@ -36,7 +37,7 @@ automáticos. Fecha com o botão de fechar da janela (ou Alt+F4).
 ## Mapa de arquivos
 
 ```
-CMakeLists.txt        — alvo fighting_game (7 .cpp), FetchContent do raylib (tag 5.5)
+CMakeLists.txt        — alvo fighting_game (8 .cpp), FetchContent do raylib (tag 5.5)
 CMakePresets.json      — presets debug/release (flags descritas acima)
 src/main.cpp           — orquestração fina: janela, loop de timestep fixo,
                          leitura de input dos 2 jogadores, chama UpdateMatch
@@ -52,7 +53,7 @@ src/fighter.h/.cpp     — FighterState (FSM completa), AttackPhase, MoveId,
                          ApplyKnockdownReaction/SetRoundOutcome/AddSuperMeter,
                          ClampFighterToArena, ResetFighterForNewRound
 src/combat.h/.cpp      — MoveData, tabela central de frame data (kMoveTable,
-                         6 golpes), FighterHurtbox/FighterHitbox, ResolveCombat
+                         7 golpes), FighterHurtbox/FighterHitbox, ResolveCombat
                          (corpo-a-corpo) e ResolveProjectileHit (projétil),
                          ambos via ApplyMoveOutcome (dano/hitstun/pushback/
                          bloqueio/blockstun/chip/combo/meter compartilhado)
@@ -66,6 +67,9 @@ src/game.h/.cpp        — RoundPhase, Match (inclui os 2 slots de Projectile),
                          round), DrawMatchOverlay (intro/timer/KO/resultado),
                          DrawHud (vida/meter/combo/retrato por jogador),
                          DrawProjectiles
+src/selftest.h/.cpp    — RunSelfTest: harness de --selftest (LCG de seed
+                         fixa + hash FNV-1a do estado final, 2 execuções
+                         comparadas, headless)
 docs/DECISOES.md       — log de decisões (data | decisão | motivo | alternativas)
 AGENTS.md / CLAUDE.md  — este arquivo (symlink)
 assets/                — ainda não existe; só entra na F5+ (spritesheets) e
@@ -255,16 +259,37 @@ antiaéreo, agachado, salto com ataque, 1 projétil (Gunner), 1 super com
 invulnerabilidade, frame data balanceada pelos princípios do gênero
 (pesado lento/forte, leve rápido/fraco, vantagem de frame coerente).
 
-## Próxima fatia (F6 — Treino + robustez)
+**F6a — Flag `--selftest` (sub-fatia da F6): CONCLUÍDA.**
 
-Modo treino: dummy infinito (não morre/reseta vida ao chegar em 0? ou
-só não conta pra vitória — decisão a tomar), tecla pra exibir hitboxes/
-hurtboxes (`FighterHitbox`/`FighterHurtbox`/`ProjectileHitbox` já
-existem, só falta desenhar), overlay de frame data (startup/active/
-recovery do golpe atual, já tudo em `GetMoveData`). Flag `--selftest`:
-roda 3600 ticks com inputs scriptados, roda de novo com a MESMA seed e
-compara hash do estado final — prova de determinismo (hoje a simulação
-já não lê relógio/disco, só falta o harness de hash+replay). Corrigir
-tudo que o sanitizer acusar (até agora zero leaks/UB detectados em
-qualquer fatia — se continuar assim, esse item já está cumprido, mas
-vale rodar um teste mais longo/variado antes de dar como certo).
+- Módulo `selftest.h/.cpp` novo: `RunSelfTest()` roda a simulação
+  (`UpdateMatch`) por 3600 ticks com inputs scriptados por um LCG de
+  seed fixa (12345/67890), duas vezes, e compara o hash FNV-1a do
+  estado final (`Fighter`×2 + `Match`, campo a campo — não memcpy do
+  struct, pra não pegar padding não inicializado).
+- `main.cpp` ganhou `argc`/`argv`; `--selftest` roda **headless** (nunca
+  chama `InitWindow`) e retorna 0 (bateu) ou 1 (não bateu) — dá pra usar
+  em CI.
+- Verificado de verdade (não só smoke test): `--selftest` rodado 3x
+  seguidas no release, e 1x no debug/ASan — todas bateram, e **o hash
+  foi idêntico entre release e debug** (`49c41802b252ccc0`), sinal extra
+  de que não há UB sendo explorado diferente por otimização. Build
+  limpo nos dois presets, ASan sem leak (caminho normal do jogo também
+  reverificado com o mesmo truque de sempre).
+
+## Próxima fatia (F6b — Modo treino)
+
+Dummy infinito: decisão a tomar sobre se ele "não morre" (vida nunca
+chega a 0, sempre volta a 100) ou só "não conta pra vitória" (pode
+tomar KO mas o modo treino não fecha round/partida — provavelmente um
+`RoundPhase`/flag nova em `Match`, ou um modo totalmente à parte do
+`UpdateMatch` normal). Tecla pra exibir hitboxes/hurtboxes
+(`FighterHitbox`/`FighterHurtbox`/`ProjectileHitbox` já existem em
+combat.h/projectile.h, só falta desenhar os retângulos por cima quando
+a tecla estiver ativa). Overlay de frame data (startup/active/recovery
+do golpe atual — já tudo disponível via `GetMoveData(fighter.current_move)`,
+só falta desenhar texto). Depois da F6b, a F6 está completa (o item
+"corrigir tudo que o sanitizer acusar" já vem sendo cumprido a cada
+fatia — zero leaks/UB detectados até aqui, incluindo o `--selftest`) e
+a próxima fase é a **F7** (spritesheets reais se existirem em `assets/`
+— fallback pros retângulos se não —, áudio opcional, IA dummy básica
+com seed, se sobrar fôlego).
