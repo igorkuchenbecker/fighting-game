@@ -38,7 +38,7 @@ automáticos. Fecha com o botão de fechar da janela (ou Alt+F4).
 ## Mapa de arquivos
 
 ```
-CMakeLists.txt        — alvo fighting_game (10 .cpp), FetchContent do raylib (tag 5.5)
+CMakeLists.txt        — alvo fighting_game (11 .cpp), FetchContent do raylib (tag 5.5)
 CMakePresets.json      — presets debug/release (flags descritas acima)
 src/main.cpp           — orquestração fina: lê argv (--selftest/--training),
                          senão janela + loop de timestep fixo, leitura de
@@ -75,10 +75,16 @@ src/selftest.h/.cpp    — RunSelfTest: harness de --selftest (LCG de seed
 src/training.h/.cpp    — RunTrainingMode: loop do modo treino (dummy
                          infinito, tecla F1 pra hit/hurtbox, overlay de
                          frame data sempre visível)
+src/sprites.h/.cpp     — CharacterSprite, LoadCharacterSprite/
+                         UnloadCharacterSprite (fallback automático se o
+                         arquivo não existir em assets/)
 docs/DECISOES.md       — log de decisões (data | decisão | motivo | alternativas)
 AGENTS.md / CLAUDE.md  — este arquivo (symlink)
-assets/                — ainda não existe; só entra na F5+ (spritesheets) e
-                         F7 (áudio), sempre com fallback automático se ausente
+assets/                — ainda não existe (nenhuma arte/áudio real
+                         fornecida até agora). O código de carregamento
+                         (sprites.h) já suporta assets/warrior.png e
+                         assets/gunner.png se um dia existirem — sempre
+                         com fallback automático, sem crash, sem warning
 ```
 
 Ordem de extração do prompt (`input, fighter, combat, stage, game`) completa.
@@ -314,14 +320,43 @@ sanitizer acusar" foi cumprido continuamente, fatia a fatia, desde a F0
 — zero leaks/UB detectados em qualquer momento da F0 à F6, incluindo o
 próprio `--selftest`.
 
-## Próxima fatia (F7 — Polimento, se sobrar fôlego)
+**F7a — Spritesheets (sub-fatia da F7): CONCLUÍDA.**
 
-Última fase do roadmap. Spritesheets reais se existirem em `assets/`
-(fallback automático pros retângulos de código se não existirem — regra
-já vigente desde a F0, só falta o carregamento condicional de verdade);
-áudio opcional via raylib audio (arquivos em `assets/audio/`, silencioso
-se ausentes); IA dummy básica com seed (anda, bloqueia, bate aleatório —
-primeiro uso real de RNG no projeto; precisa da seed explícita que o
-requisito duro já exige, nunca `rand()`/`time()` cru). Como o roadmap
-diz "se sobrar fôlego", essa fase é a mais opcional de todas — o jogo já
-está completo e jogável (F0–F6) sem ela.
+- Módulo `sprites.h/.cpp` novo: `CharacterSprite{Texture2D, bool loaded}`,
+  `LoadCharacterSprite(CharacterId)` (carrega `assets/warrior.png` ou
+  `assets/gunner.png` SE existir via `FileExists` antes de `LoadTexture`
+  — nunca tenta carregar um arquivo ausente, então nunca gera warning do
+  raylib por isso), `UnloadCharacterSprite`.
+- `DrawFighter` (game.h/.cpp) ganhou 3º parâmetro opcional
+  `const CharacterSprite* sprite = nullptr`: se presente e `loaded`,
+  desenha a textura (via `DrawTexturePro`, espelhada por `facing_right`
+  com largura negativa no rect de origem — truque padrão do raylib) e
+  tingida com `FighterColor` (preserva 100% do feedback visual de
+  fase/estado que já existia); senão cai pro retângulo de sempre.
+- `main.cpp`: carrega as 2 sprites depois de `InitWindow` (precisa do
+  contexto GL), descarrega ANTES de `CloseWindow` (`Texture2D` é recurso
+  de GPU — por isso Load/Unload seguem o padrão do próprio raylib, não
+  um wrapper RAII customizado). Modo treino continua sem sprites (fora
+  do escopo desta fatia, ver `docs/DECISOES.md`).
+- Verificado dos dois lados: (a) fallback — sem `assets/`, `loaded=0`
+  nos dois, roda limpo, sem warning; (b) carregamento — gerei
+  `warrior.png`/`gunner.png` placeholder via ImageMagick (retângulo
+  colorido + letra), `loaded=1`, e **confirmei visualmente por
+  screenshot** que a textura desenha na posição/tamanho certos e recebe
+  o tint correto (P1 tom avermelhado, P2 tom azulado). Placeholders
+  deletados depois — `assets/` volta a não existir (não é arte real, só
+  prova de que o caminho de carregamento funciona; ver `docs/DECISOES.md`).
+  Build limpo nos dois presets, ASan sem leak; `--selftest` re-verificado
+  com o mesmo hash de sempre (sprites não tocam a simulação).
+
+## Próxima fatia (F7b — Áudio, se sobrar fôlego)
+
+Áudio opcional via raylib audio (`InitAudioDevice`/`LoadSound`/
+`PlaySound`), arquivos em `assets/audio/`, silencioso se ausentes (mesmo
+padrão fallback de `sprites.h` — checar `FileExists` antes de carregar).
+Prováveis gatilhos: golpe conectando (hit/block diferentes), pulo, KO.
+Depois: **F7c** — IA dummy básica com seed (anda, bloqueia, bate
+aleatório; primeiro uso real de RNG no projeto — precisa de seed
+explícita, nunca `rand()`/`time()` cru, requisito duro). Como o roadmap
+diz "se sobrar fôlego", a F7 inteira é a mais opcional de todas — o jogo
+já está completo e jogável (F0–F6) sem ela.

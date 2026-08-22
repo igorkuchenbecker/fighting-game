@@ -6,6 +6,7 @@
 #include "game.h"
 #include "input.h"
 #include "selftest.h"
+#include "sprites.h"
 #include "stage.h"
 #include "training.h"
 
@@ -52,6 +53,11 @@ int main(int argc, char** argv) {
   ResetFighterForNewRound(p2, kArenaRight - 250.0f);
   Match match;
 
+  // Carrega sprite SE existir em assets/; senão fica com o retângulo de
+  // sempre (fallback automático, ver DrawFighter/game.cpp).
+  CharacterSprite p1_sprite = LoadCharacterSprite(p1.character);
+  CharacterSprite p2_sprite = LoadCharacterSprite(p2.character);
+
   InputBuffer p1_buffer;
   InputBuffer p2_buffer;
   double accumulator = 0.0;
@@ -76,14 +82,16 @@ int main(int argc, char** argv) {
     BeginDrawing();
     ClearBackground(BLACK);
     DrawArena();
-    DrawFighter(p1, kP1Color);
-    DrawFighter(p2, kP2Color);
+    DrawFighter(p1, kP1Color, &p1_sprite);
+    DrawFighter(p2, kP2Color, &p2_sprite);
     DrawProjectiles(match);
     DrawMatchOverlay(match);
     DrawHud(p1, p2, kP1Color, kP2Color);
     EndDrawing();
   }
 
+  UnloadCharacterSprite(p1_sprite);
+  UnloadCharacterSprite(p2_sprite);
   CloseWindow();
   return 0;
 }

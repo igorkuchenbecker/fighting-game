@@ -29,5 +29,6 @@ add_executable(fighting_game
   src/projectile.cpp
   src/selftest.cpp
   src/training.cpp
+  src/sprites.cpp
 )
 target_link_libraries(fighting_game PRIVATE raylib)

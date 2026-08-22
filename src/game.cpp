@@ -170,12 +170,25 @@ void UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_in
   }
 }
 
-void DrawFighter(const Fighter& fighter, Color base_color) {
+void DrawFighter(const Fighter& fighter, Color base_color, const CharacterSprite* sprite) {
   const float height = FighterDrawHeight(fighter);
+  const Color color = FighterColor(fighter, base_color);
+
+  if (sprite != nullptr && sprite->loaded) {
+    // Largura negativa no retângulo de origem espelha a textura — truque
+    // padrão do raylib pra virar sprite por facing_right sem 2ª imagem.
+    const float source_width =
+        static_cast<float>(sprite->texture.width) * (fighter.facing_right ? 1.0f : -1.0f);
+    const Rectangle source{0.0f, 0.0f, source_width, static_cast<float>(sprite->texture.height)};
+    const Rectangle dest{fighter.position.x - kFighterHalfWidth, fighter.position.y - height,
+                          kFighterHalfWidth * 2.0f, height};
+    DrawTexturePro(sprite->texture, source, dest, Vector2{0.0f, 0.0f}, 0.0f, color);
+    return;
+  }
+
   DrawRectangle(static_cast<int>(fighter.position.x - kFighterHalfWidth),
                 static_cast<int>(fighter.position.y - height),
-                static_cast<int>(kFighterHalfWidth * 2.0f), static_cast<int>(height),
-                FighterColor(fighter, base_color));
+                static_cast<int>(kFighterHalfWidth * 2.0f), static_cast<int>(height), color);
 }
 
 void DrawMatchOverlay(const Match& match) {

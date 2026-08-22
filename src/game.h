@@ -3,6 +3,7 @@
 #include "combat.h"
 #include "fighter.h"
 #include "input.h"
+#include "sprites.h"
 
 // Timestep fixo da simulação — único lugar de verdade, usado tanto pelo
 // loop externo (main.cpp) quanto pelo decremento do timer de round aqui.
@@ -40,10 +41,12 @@ void UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_in
 
 void DrawMatchOverlay(const Match& match);
 
-// Desenha o retângulo do lutador (cor por estado/fase de ataque, altura
-// por estado — agachado/caído). `base_color` distingue P1/P2 (dois tons,
-// exigido enquanto o visual for retângulos de código nas F0-4).
-void DrawFighter(const Fighter& fighter, Color base_color);
+// Desenha o lutador: se `sprite` não é nulo e `sprite->loaded`, desenha a
+// textura (espelhada por `facing_right`); senão cai pro retângulo de
+// sempre (cor por estado/fase de ataque, altura por estado — agachado/
+// caído). `base_color` distingue P1/P2 (dois tons, tinge tanto o
+// retângulo quanto a sprite).
+void DrawFighter(const Fighter& fighter, Color base_color, const CharacterSprite* sprite = nullptr);
 
 // Barras de vida/medidor de super, contador de combo e retratos
 // placeholder de cada jogador. `p1_color`/`p2_color` são os mesmos tons
