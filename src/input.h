@@ -31,9 +31,12 @@ bool DirectionHasRight(Direction8 direction);
 bool DirectionHasUp(Direction8 direction);
 bool DirectionHasDown(Direction8 direction);
 
-// Único ponto que toca a API de input do raylib (teclado). Chamado uma vez
-// por iteração do loop externo — nunca de dentro do step de simulação.
-InputFrame ReadInputFrame(int key_up, int key_down, int key_left, int key_right, int key_attack);
+// Único ponto que toca a API de input do raylib (teclado + gamepad).
+// Chamado uma vez por iteração do loop externo — nunca de dentro do step
+// de simulação. `gamepad` é o índice do gamepad (0, 1, ...); se não
+// houver gamepad conectado nesse slot, só o teclado é considerado.
+InputFrame ReadInputFrame(int key_up, int key_down, int key_left, int key_right, int key_attack,
+                           int gamepad);
 
 // Buffer circular de InputFrame por jogador (pré-requisito de netcode:
 // permite consultar o histórico recente sem reler input do passado).

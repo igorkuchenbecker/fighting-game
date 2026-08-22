@@ -71,7 +71,32 @@ Próxima extração de módulo (por ordem do prompt): `stage`/`game` na F4.
 **F0 — Fundação: CONCLUÍDA** (commit `52b2785`).
 **F1 — Lutador vivo: CONCLUÍDA** (commit `42a8202`).
 **F2 — FSM + buffer: CONCLUÍDA** (commit `6e0d46d`).
-**F3 — Combate: CONCLUÍDA.**
+**F3 — Combate: CONCLUÍDA** (commit `fb6fe44`).
+**F4a — P2 real (sub-fatia da F4): CONCLUÍDA.**
+
+- F4 foi dividida em sub-fatias (F4a/F4b/F4c) por ser grande demais pra
+  uma fatia só — ver `docs/DECISOES.md`.
+- `dummy` virou `p2` de verdade: P1 = setas+espaço ou gamepad slot 0; P2 =
+  WASD+ctrl-esquerdo ou gamepad slot 1 (`ReadInputFrame` agora lê teclado
+  E gamepad, combinados por OR; d-pad ou stick esquerdo com deadzone 0.4).
+- `UpdateFacing(p1, p2)` chamado 1x por tick antes dos `StepFighter`:
+  `facing_right` passa a refletir a posição relativa real — `WalkForward`/
+  `WalkBackward` e o lado do hitbox agora fazem sentido geométrico de
+  verdade (antes `facing_right` era fixo `true`).
+  `ResolveCombat` já era chamado nos dois sentidos desde a F3, então
+  qualquer jogador pode atacar o outro sem mudança nenhuma ali.
+- `BlockStanding`/`BlockCrouching` continuam self-loop (ver
+  `docs/DECISOES.md` — não teriam comportamento distinto de `Walk*`/
+  `Crouch` do jeito que o bloqueio já funciona).
+- Verificado com smoke test temporário (P1 e P2 scriptados — P2 aproxima
+  e ataca P1, depois P1 pinado na parede bloqueia um segundo ataque de
+  P2; revertido antes do commit): facing correto nos dois lados, dano/
+  hitstun/chip/blockstun/pushback idênticos aos da F3 mas agora com P2
+  como atacante. **Não verificado com tecla/gamepad físico de verdade**
+  (sem ferramenta de simulação de input no ambiente) — a leitura
+  `IsKeyDown`/gamepad em si (dentro de `ReadInputFrame`) não foi
+  exercitada, só a lógica de simulação a jusante dela. Build limpo nos
+  dois presets, ASan sem leak do nosso código.
 
 - Módulo `combat.h/.cpp` extraído (ordem `input, fighter, combat, stage, game`).
 - `MoveData`/`kMoveTable` (`combat.cpp`): tabela central com o único golpe
@@ -101,26 +126,24 @@ Próxima extração de módulo (por ordem do prompt): `stage`/`game` na F4.
   limpo, chip 1/blockstun 8 no bloqueado, pushback correto nos dois
   corpos (inclusive com o clamp de parede segurando o defensor). Build
   limpo nos dois presets, ASan sem leak do nosso código.
-- Combo counter, knockdown/wakeup real, juggle e medidor de super **não**
-  entraram (não são do bullet de F3 — ver `docs/DECISOES.md`). Ainda um
-  único lutador jogável (dummy não é P2 real) — isso é F4.
+- (resumo F2/F3, detalhes nos commits `6e0d46d`/`fb6fe44`): módulos
+  `input`/`fighter`/`combat` extraídos; `InputBuffer` de 10 frames;  FSM
+  completa (14 estados); ataque neutro com 3 fases; tabela central de
+  frame data (`kMoveTable`); hit/hurtbox por frame; dano/hitstun/pushback/
+  bloqueio/blockstun/chip damage — tudo validado com dummy estático (F3),
+  depois com P2 real (F4a).
 
-- (resumo F2, detalhes no commit `6e0d46d`): módulos `input`/`fighter`
-  extraídos; `InputBuffer` circular de 10 frames alimentado e consultado
-  de verdade; FSM completa (14 estados) com transição única em
-  `ComputeNextState`; ataque neutro com 3 fases visíveis; borda de subida
-  do botão via `Fighter::attack_button_held`; `facing_right` fixo em
-  `true` (dinâmico só na F4).
+## Próxima fatia (F4b — Round/Partida)
 
-## Próxima fatia (F4 — Partida)
-
-Extrair módulos `stage`/`game`. Trocar o `dummy` estático por P2 jogável
-de verdade (segundo `InputBuffer`, teclado — WASD ou similar — e suporte
-a gamepad via raylib); com dois jogadores reais, dar `facing_right`
-dinâmico (vira pra encarar o oponente, o que também é o momento natural
-de wirar `BlockStanding`/`BlockCrouching` como stance visual persistente,
-não só reativa no hit). Sistema de round best-of-3, timer 99s, tela de
-intro "ROUND 1 / FIGHT!", KO screen (é aqui que `Knockdown`/`Win`/`Lose`
-da FSM ganham gatilho pela primeira vez). HUD: barras de vida, medidor de
-super (placeholder, ainda sem golpe especial), contador de combo,
-retratos placeholder.
+Extrair módulos `stage` (bounds/render da arena) e `game` (fluxo de
+round/match). Sistema de round best-of-3, timer 99s contado dentro do
+step de simulação (`kFixedDt` por tick — determinístico, sem ler
+relógio), tela de intro "ROUND 1 / FIGHT!", KO screen. É aqui que
+`Knockdown`/`Win`/`Lose` da FSM ganham gatilho pela primeira vez (hit que
+zera a vida → Knockdown; fim de round → `Win`/`Lose` via nova função
+`SetRoundOutcome`, mantendo a regra de único ponto de transição).
+`Wakeup` provavelmente continua sem gatilho (só faz sentido com um
+knockdown "soft" que não termina o round — isso é F5+, ver decisão a
+registrar). Depois disso, **F4c — HUD**: barras de vida, medidor de super
+placeholder (enche ao dar/tomar dano, sem golpe pra gastar ainda),
+contador de combo com escala de dano, retratos placeholder.

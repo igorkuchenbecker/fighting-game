@@ -24,11 +24,13 @@ bool DirectionHasDown(Direction8 direction) {
 
 namespace {
 
-Direction8 ReadDirection8(int key_up, int key_down, int key_left, int key_right) {
-  const bool up = IsKeyDown(key_up);
-  const bool down = IsKeyDown(key_down) && !up;      // cima tem prioridade
-  const bool left = IsKeyDown(key_left);
-  const bool right = IsKeyDown(key_right) && !left;  // esquerda tem prioridade
+constexpr float kGamepadDeadzone = 0.4f;
+
+Direction8 CombineDirection(bool up, bool down, bool left, bool right) {
+  // cima/esquerda têm prioridade sobre baixo/direita quando os dois lados
+  // de um eixo vêm pressionados ao mesmo tempo.
+  down = down && !up;
+  right = right && !left;
 
   if (up && left) return Direction8::UpLeft;
   if (up && right) return Direction8::UpRight;
@@ -41,12 +43,41 @@ Direction8 ReadDirection8(int key_up, int key_down, int key_left, int key_right)
   return Direction8::Neutral;
 }
 
+Direction8 ReadDirection8Keyboard(int key_up, int key_down, int key_left, int key_right) {
+  return CombineDirection(IsKeyDown(key_up), IsKeyDown(key_down), IsKeyDown(key_left),
+                           IsKeyDown(key_right));
+}
+
+Direction8 ReadDirection8Gamepad(int gamepad) {
+  if (!IsGamepadAvailable(gamepad)) return Direction8::Neutral;
+
+  const float axis_x = GetGamepadAxisMovement(gamepad, GAMEPAD_AXIS_LEFT_X);
+  const float axis_y = GetGamepadAxisMovement(gamepad, GAMEPAD_AXIS_LEFT_Y);
+
+  const bool up =
+      IsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_UP) || axis_y < -kGamepadDeadzone;
+  const bool down =
+      IsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_DOWN) || axis_y > kGamepadDeadzone;
+  const bool left =
+      IsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_LEFT) || axis_x < -kGamepadDeadzone;
+  const bool right =
+      IsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_LEFT_FACE_RIGHT) || axis_x > kGamepadDeadzone;
+
+  return CombineDirection(up, down, left, right);
+}
+
 }  // namespace
 
-InputFrame ReadInputFrame(int key_up, int key_down, int key_left, int key_right, int key_attack) {
+InputFrame ReadInputFrame(int key_up, int key_down, int key_left, int key_right, int key_attack,
+                           int gamepad) {
+  const Direction8 keyboard_direction = ReadDirection8Keyboard(key_up, key_down, key_left, key_right);
+  const Direction8 gamepad_direction = ReadDirection8Gamepad(gamepad);
+
   InputFrame frame;
-  frame.direction = ReadDirection8(key_up, key_down, key_left, key_right);
-  frame.buttons = IsKeyDown(key_attack) ? static_cast<std::uint8_t>(kButtonLight)
-                                         : static_cast<std::uint8_t>(0);
+  frame.direction = gamepad_direction != Direction8::Neutral ? gamepad_direction : keyboard_direction;
+
+  const bool attack_down = IsKeyDown(key_attack) ||
+      (IsGamepadAvailable(gamepad) && IsGamepadButtonDown(gamepad, GAMEPAD_BUTTON_RIGHT_FACE_DOWN));
+  frame.buttons = attack_down ? static_cast<std::uint8_t>(kButtonLight) : static_cast<std::uint8_t>(0);
   return frame;
 }

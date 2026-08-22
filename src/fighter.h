@@ -50,6 +50,12 @@ struct Fighter {
 // determinístico: só lê o InputFrame recebido, nunca teclado/relógio/disco.
 void StepFighter(Fighter& fighter, const InputFrame& input);
 
+// Vira os dois lutadores um de frente pro outro, a partir da posição
+// atual. Chamado antes de StepFighter/ResolveCombat: WalkForward/
+// WalkBackward e o lado do hitbox dependem de `facing_right` estar
+// sempre coerente com onde o oponente está.
+void UpdateFacing(Fighter& a, Fighter& b);
+
 // Mantém o lutador dentro dos limites da arena. Compartilhado entre a
 // física (fighter.cpp) e o pushback de combate (combat.cpp).
 void ClampFighterToArena(Fighter& fighter);

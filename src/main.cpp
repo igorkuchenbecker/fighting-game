@@ -61,36 +61,43 @@ int main() {
   InitWindow(kScreenWidth, kScreenHeight, "Fighting Game");
   SetTargetFPS(60);
 
-  Fighter player;
-  Fighter dummy;
-  dummy.position.x = kArenaRight - 200.0f;
+  Fighter p1;
+  Fighter p2;
+  p1.position.x = kArenaLeft + 250.0f;
+  p2.position.x = kArenaRight - 250.0f;
 
-  InputBuffer input_buffer;
-  const InputFrame kDummyInput{};  // dummy parado: P2 jogável só chega na F4
+  InputBuffer p1_buffer;
+  InputBuffer p2_buffer;
   double accumulator = 0.0;
 
   while (!WindowShouldClose()) {
-    input_buffer.Push(ReadInputFrame(KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_SPACE));
+    // P1: setas + espaço, ou gamepad 0. P2: WASD + ctrl esquerdo, ou
+    // gamepad 1. Único ponto que toca IsKeyDown/gamepad (via ReadInputFrame).
+    p1_buffer.Push(ReadInputFrame(KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_SPACE, 0));
+    p2_buffer.Push(ReadInputFrame(KEY_W, KEY_S, KEY_A, KEY_D, KEY_LEFT_CONTROL, 1));
 
     accumulator += GetFrameTime();
     // Simulação avança em passos fixos de 1/60s, desacoplada do delta-time
     // variável do render (pré-requisito para determinismo/rollback futuro).
     while (accumulator >= kFixedDt) {
-      const InputFrame& player_input = input_buffer.AtDelay(0);
-      StepFighter(player, player_input);
-      StepFighter(dummy, kDummyInput);
-      // Resolvido nos dois sentidos: hoje só o player ataca, mas a forma
-      // já é a correta para quando a F4 trouxer um P2 jogável de verdade.
-      ResolveCombat(player, dummy, kDummyInput);
-      ResolveCombat(dummy, player, player_input);
+      const InputFrame& p1_input = p1_buffer.AtDelay(0);
+      const InputFrame& p2_input = p2_buffer.AtDelay(0);
+
+      UpdateFacing(p1, p2);
+      StepFighter(p1, p1_input);
+      StepFighter(p2, p2_input);
+      // Resolvido nos dois sentidos: com P1 e P2 jogáveis, qualquer um
+      // pode ser o atacante.
+      ResolveCombat(p1, p2, p2_input);
+      ResolveCombat(p2, p1, p1_input);
       accumulator -= kFixedDt;
     }
 
     BeginDrawing();
     ClearBackground(BLACK);
     DrawArena();
-    DrawFighter(player, MAROON);
-    DrawFighter(dummy, DARKBLUE);
+    DrawFighter(p1, MAROON);
+    DrawFighter(p2, DARKBLUE);
     EndDrawing();
   }
 

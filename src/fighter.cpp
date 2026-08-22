@@ -157,6 +157,11 @@ void ApplyBlockReaction(Fighter& defender, int blockstun_frames) {
   defender.attack_phase = AttackPhase::None;
 }
 
+void UpdateFacing(Fighter& a, Fighter& b) {
+  a.facing_right = b.position.x >= a.position.x;
+  b.facing_right = a.position.x >= b.position.x;
+}
+
 void StepFighter(Fighter& fighter, const InputFrame& input) {
   const bool wants_left = DirectionHasLeft(input.direction);
   const bool wants_right = DirectionHasRight(input.direction);
