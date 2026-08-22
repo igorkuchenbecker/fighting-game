@@ -47,6 +47,8 @@ const MoveData& GetMoveData(MoveId move) {
       {13, 6, 20, 18, 3, 24, 14, 16.0f, 9.0f, Rectangle{kFighterHalfWidth, -170.0f, 55.0f, 110.0f}},
       // CrouchingLight — golpe agachado, hitbox baixo
       {5, 4, 9, 6, 1, 12, 7, 8.0f, 5.0f, Rectangle{kFighterHalfWidth, -40.0f, 45.0f, 30.0f}},
+      // JumpingLight — único golpe aéreo por ora, hitbox na altura do peito
+      {5, 6, 8, 10, 2, 16, 9, 9.0f, 5.0f, Rectangle{kFighterHalfWidth, -70.0f, 55.0f, 50.0f}},
   };
   return kMoveTable[static_cast<int>(move)];
 }

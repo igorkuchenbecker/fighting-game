@@ -146,16 +146,36 @@ Ordem de extração do prompt (`input, fighter, combat, stage, game`) completa.
   presets, ASan sem leak (saída limpa forçada com limite de frames
   temporário, já que o loop real só fecha por `WindowShouldClose`).
 
-## Próxima fatia (F5b — Salto com ataque + 2º personagem)
+**F5b — Salto com ataque (sub-fatia da F5): CONCLUÍDA.**
 
-Ataque aéreo de verdade (hoje `ComputeNextState`'s grupo Idle/Walk/Crouch
-não inclui `Jump`, então não há como atacar no ar — precisa decidir se
-vira um 5º `MoveId` ou reusa `LightStanding` com hitbox diferente quando
-`!is_grounded`). 2 personagens distintos: provavelmente um `CharacterId`
-em `Fighter` e `kMoveTable` vira uma tabela por personagem (hoje é fixa,
-um golpe = um índice global). 1 projétil (personagem 2) — precisa de uma
-entidade nova tipo `Projectile` com sua própria hitbox/velocidade,
-provavelmente um `src/projectile.h/.cpp`. Depois: **F5c** — 1 super de
-verdade (ativa com o `super_meter` que já existe, invulnerabilidade
-inicial); **F5d** — balanceamento de verdade da frame data (os valores de
-hoje são placeholder consistente, não testado por jogo real).
+- `ComputeNextState`'s caso `Jump` agora checa `attack_just_pressed`
+  antes do check de `is_grounded` (dá pra atacar em qualquer ponto do
+  pulo, contanto que ainda esteja no ar).
+- `MoveId::JumpingLight` (5º golpe, `kMoveTable` combat.cpp): startup 5/
+  active 6/recovery 8/dano 10, hitbox na altura do peito (offset y −70,
+  altura 50). Ignora força do botão (só existe 1 golpe aéreo, mesma
+  lógica do agachado da F5a). `DetermineMove` checa `Jump` antes de
+  `Crouch`.
+- Nenhum caso especial pra momentum aéreo (`Attack` zera `velocity.x`
+  igual no chão/ar) nem pra pouso durante recovery (resolve sozinho, sem
+  código extra) — ver `docs/DECISOES.md`.
+- Verificado via `StepFighter` real: pula, ataca logo no início do pulo
+  (baixa altitude) e conecta com dano correto (10) + Hitstun; também
+  confirmado que atacar perto do ápice do pulo erra um alvo no chão —
+  física correta (hitbox fica alto demais), não bug. Pouso após o ataque
+  resolve normalmente de volta a Idle. Build limpo nos dois presets,
+  ASan sem leak (saída limpa forçada com limite de frames temporário).
+
+## Próxima fatia (F5c — 2º personagem + projétil)
+
+2 personagens distintos: provavelmente um `CharacterId` em `Fighter` e
+`kMoveTable` vira uma tabela por personagem (hoje é fixa, um golpe = um
+índice global — precisa virar `GetMoveData(CharacterId, MoveId)` ou
+tabelas separadas por personagem). 1 projétil (personagem 2) — precisa
+de uma entidade nova tipo `Projectile` com sua própria hitbox/
+velocidade/tempo de vida, provavelmente um `src/projectile.h/.cpp`
+(update/render/colisão contra hurtbox do oponente, sem colidir com o
+próprio atacante). Depois: **F5d** — 1 super de verdade (ativa com o
+`super_meter` que já existe, invulnerabilidade inicial); **F5e** —
+balanceamento de verdade da frame data (os valores de hoje são
+placeholder consistente, não testado por jogo real).

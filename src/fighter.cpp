@@ -16,6 +16,7 @@ constexpr float kGravity = 0.8f;
 // de antiaéreo (hitbox alto, ver combat.cpp) em vez de ganhar um golpe
 // dedicado — ver docs/DECISOES.md.
 MoveId DetermineMove(FighterState state_before_attack, bool heavy_pressed, bool medium_pressed) {
+  if (state_before_attack == FighterState::Jump) return MoveId::JumpingLight;
   if (state_before_attack == FighterState::Crouch) return MoveId::CrouchingLight;
   if (heavy_pressed) return MoveId::HeavyStanding;
   if (medium_pressed) return MoveId::MediumStanding;
@@ -46,6 +47,9 @@ FighterState ComputeNextState(const Fighter& fighter, bool wants_left, bool want
       return FighterState::Idle;
 
     case FighterState::Jump:
+      // `is_grounded` só vira true de novo depois de ApplyPhysics pousar o
+      // lutador (tick seguinte); enquanto ainda no ar, dá pra atacar.
+      if (attack_just_pressed) return FighterState::Attack;
       return fighter.is_grounded ? FighterState::Idle : FighterState::Jump;
 
     case FighterState::Attack:

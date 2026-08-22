@@ -36,7 +36,7 @@ enum class AttackPhase { None, Startup, Active, Recovery };
 // — nada de número mágico de dano/frame/hitbox espalhado pelo resto do
 // código (requisito duro). Mora aqui (não em combat.h) porque `Fighter`
 // precisa guardar qual golpe está em andamento.
-enum class MoveId { LightStanding, MediumStanding, HeavyStanding, CrouchingLight };
+enum class MoveId { LightStanding, MediumStanding, HeavyStanding, CrouchingLight, JumpingLight };
 
 struct Fighter {
   Vector2 position{(kArenaLeft + kArenaRight) / 2.0f, kFloorY};
