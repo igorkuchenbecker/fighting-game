@@ -24,5 +24,7 @@ add_executable(fighting_game
   src/input.cpp
   src/fighter.cpp
   src/combat.cpp
+  src/stage.cpp
+  src/game.cpp
 )
 target_link_libraries(fighting_game PRIVATE raylib)

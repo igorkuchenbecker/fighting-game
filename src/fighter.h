@@ -3,15 +3,13 @@
 #include "raylib.h"
 
 #include "input.h"
+#include "stage.h"
 
-// Dimensões/limites da arena compartilhados entre a simulação (colisão,
-// caixas de combate) e o render (desenho do chão/paredes/lutador).
-constexpr float kArenaLeft = 100.0f;
-constexpr float kArenaRight = 1180.0f;
-constexpr float kFloorY = 600.0f;
+// Dimensões do lutador (a arena em si vive em stage.h).
 constexpr float kFighterHalfWidth = 30.0f;
 constexpr float kFighterStandHeight = 120.0f;
 constexpr float kFighterCrouchHeight = 80.0f;
+constexpr float kFighterKnockdownHeight = 30.0f;
 
 enum class FighterState {
   Idle,
@@ -40,7 +38,7 @@ struct Fighter {
   FighterState state = FighterState::Idle;
   AttackPhase attack_phase = AttackPhase::None;
   int state_timer = 0;               // frames decorridos no estado/fase atual
-  int stun_target_frames = 0;        // duração alvo de Hitstun/Blockstun (F3)
+  int stun_target_frames = 0;        // duração alvo de Hitstun/Blockstun
   bool attack_button_held = false;   // estado do frame anterior, p/ detectar borda de subida
   bool current_attack_has_hit = false;  // trava o golpe atual em 1 acerto só
   int health = 100;
@@ -60,8 +58,14 @@ void UpdateFacing(Fighter& a, Fighter& b);
 // física (fighter.cpp) e o pushback de combate (combat.cpp).
 void ClampFighterToArena(Fighter& fighter);
 
-// Reações a um golpe confirmado pelo módulo de combate. Continuam sendo
-// fighter.cpp quem escreve em `Fighter::state` — combat.cpp só informa o
-// fato ("fui atingido"/"bloqueei"), nunca atribui o estado diretamente.
+// Reações a um evento já confirmado por outro módulo (combate ou
+// sistema de round). Continua sendo fighter.cpp quem escreve em
+// `Fighter::state` — quem chama só informa o fato, nunca atribui o
+// estado diretamente.
 void ApplyHitReaction(Fighter& defender, int hitstun_frames);
 void ApplyBlockReaction(Fighter& defender, int blockstun_frames);
+void ApplyKnockdownReaction(Fighter& defender);
+void SetRoundOutcome(Fighter& fighter, bool won);
+
+// Reseta um lutador pro início de um novo round (posição, vida, estado).
+void ResetFighterForNewRound(Fighter& fighter, float start_x);

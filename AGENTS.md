@@ -44,13 +44,17 @@ src/fighter.h/.cpp     — FighterState (FSM completa), AttackPhase, Fighter,
                          ApplyHitReaction/ApplyBlockReaction, ClampFighterToArena
 src/combat.h/.cpp      — MoveId, MoveData, tabela central de frame data
                          (kMoveTable), FighterHurtbox/FighterHitbox, ResolveCombat
+src/stage.h/.cpp       — kScreenWidth/Height, kArenaLeft/Right/kFloorY, DrawArena
+src/game.h/.cpp        — RoundPhase, Match, kFixedDt, UpdateMatch (orquestra
+                         facing/física/combate durante Fighting + fluxo de
+                         round), DrawMatchOverlay (textos de intro/timer/KO)
 docs/DECISOES.md       — log de decisões (data | decisão | motivo | alternativas)
 AGENTS.md / CLAUDE.md  — este arquivo (symlink)
 assets/                — ainda não existe; só entra na F5+ (spritesheets) e
                          F7 (áudio), sempre com fallback automático se ausente
 ```
 
-Próxima extração de módulo (por ordem do prompt): `stage`/`game` na F4.
+Ordem de extração do prompt (`input, fighter, combat, stage, game`) completa.
 
 ## Convenções (resumo — ver o prompt original para o texto completo)
 
@@ -72,7 +76,33 @@ Próxima extração de módulo (por ordem do prompt): `stage`/`game` na F4.
 **F1 — Lutador vivo: CONCLUÍDA** (commit `42a8202`).
 **F2 — FSM + buffer: CONCLUÍDA** (commit `6e0d46d`).
 **F3 — Combate: CONCLUÍDA** (commit `fb6fe44`).
-**F4a — P2 real (sub-fatia da F4): CONCLUÍDA.**
+**F4a — P2 real (sub-fatia da F4): CONCLUÍDA** (commit `dd6c5ae`).
+**F4b — Round/Partida (sub-fatia da F4): CONCLUÍDA.**
+
+- Módulos `stage.h/.cpp` (arena/render) e `game.h/.cpp` (round/match)
+  extraídos — ordem de extração do prompt completa.
+- `Match`/`RoundPhase` (`Intro→Fighting→Ko→Intro...` ou `→MatchOver`) em
+  `game.h`; `UpdateMatch` só roda a simulação (facing/física/combate)
+  durante `Fighting` — nas outras fases os lutadores ficam congelados.
+- Timer de 99s decrementado por `kFixedDt` (constante) dentro do step de
+  sim — determinístico, sem ler relógio.
+- `Knockdown` ganhou gatilho real (vida chega a 0 por um hit → `Ko` por
+  nocaute); `Win`/`Lose` fecham cada round (reaproveitados também no
+  `MatchOver`, sem estados extras). `Wakeup` segue sem gatilho (só faria
+  sentido com knockdown "soft" que não termina o round — F5+).
+  `BlockStanding`/`BlockCrouching` seguem sem gatilho (ver F4a).
+- `DrawMatchOverlay`: "ROUND N"/"FIGHT!" na intro, timer numérico durante
+  a luta, "K.O."/"TIME UP" na tela de KO, resultado final no fim da
+  partida (best-of-3, `kWinsNeeded=2`).
+- Verificado com smoke test temporário (input adaptativo por posição/fase
+  em vez de números de frame fixos, vida do P2 forçada baixa pra pular o
+  grind de hits reais, revertido antes do commit): 2 rounds completos —
+  Intro(120f)→Fighting→KO→Win/Knockdown→placar 1-0→Ko(90f)→reset→Intro
+  round 2→Fighting→segundo KO→placar 2-0→`MatchOver` (congela
+  corretamente). **Caminho de time-up não exercitado ponta-a-ponta** (99s
+  reais = ~5940 ticks, impraticável no smoke test; reusa a mesma
+  `EndRound()` já provada, só troca a condição de entrada — ver
+  `docs/DECISOES.md`). Build limpo nos dois presets, ASan sem leak.
 
 - F4 foi dividida em sub-fatias (F4a/F4b/F4c) por ser grande demais pra
   uma fatia só — ver `docs/DECISOES.md`.
@@ -98,52 +128,23 @@ Próxima extração de módulo (por ordem do prompt): `stage`/`game` na F4.
   exercitada, só a lógica de simulação a jusante dela. Build limpo nos
   dois presets, ASan sem leak do nosso código.
 
-- Módulo `combat.h/.cpp` extraído (ordem `input, fighter, combat, stage, game`).
-- `MoveData`/`kMoveTable` (`combat.cpp`): tabela central com o único golpe
-  existente (`LightAttack`) — startup/active/recovery/dano/chip/hitstun/
-  blockstun/pushback/hitbox, tudo num lugar só.
-- `FighterHurtbox`/`FighterHitbox` calculam as caixas por frame a partir
-  do estado atual (hurtbox encolhe ao agachar; hitbox espelha com
-  `facing_right`). `ResolveCombat(atacante, defensor, input_do_defensor)`
-  faz o AABB, e se acertar: dano+hitstun+pushback normal, ou chip+
-  blockstun+pushback reduzido se o defensor segurar "pra trás" (checado
-  reativamente no instante do hit — sem stance de guarda persistente
-  ainda, ver `docs/DECISOES.md`).
-- `ApplyHitReaction`/`ApplyBlockReaction` (fighter.cpp) aplicam a reação
-  sem violar "único ponto de transição"; `Hitstun`/`Blockstun` da FSM
-  ganharam gatilho real pela primeira vez.
-- Segundo `Fighter` ("dummy", parado, sem input) adicionado só pra
-  existir alvo — `ResolveCombat` já é chamado nos dois sentidos (P1→P2 e
-  P2→P1), pronto pra quando a F4 trouxer P2 jogável de verdade. Cores
-  distintas por lutador (MAROON/DARKBLUE) por já valer a regra visual
-  "dois tons pra P1/P2" desde que há 2 corpos em tela.
-- Allow-list de estados com controle direcional (`Idle/WalkForward/
-  WalkBackward/Jump`) substituiu a deny-list da F2 — trava movimento em
-  qualquer estado novo por padrão (Hitstun/Blockstun agora corretos).
-- Verificado com smoke test temporário (2 cenários scriptados — hit limpo
-  e hit bloqueado com o dummy encostado na parede pra não fugir do
-  hitbox andando, revertido antes do commit): dano 8/hitstun 14 no hit
-  limpo, chip 1/blockstun 8 no bloqueado, pushback correto nos dois
-  corpos (inclusive com o clamp de parede segurando o defensor). Build
-  limpo nos dois presets, ASan sem leak do nosso código.
-- (resumo F2/F3, detalhes nos commits `6e0d46d`/`fb6fe44`): módulos
-  `input`/`fighter`/`combat` extraídos; `InputBuffer` de 10 frames;  FSM
-  completa (14 estados); ataque neutro com 3 fases; tabela central de
-  frame data (`kMoveTable`); hit/hurtbox por frame; dano/hitstun/pushback/
-  bloqueio/blockstun/chip damage — tudo validado com dummy estático (F3),
-  depois com P2 real (F4a).
+- (resumo F2/F3/F4a, detalhes nos commits `6e0d46d`/`fb6fe44`/`dd6c5ae`):
+  módulos `input`/`fighter`/`combat` extraídos; `InputBuffer` de 10
+  frames; FSM completa (14 estados); ataque neutro com 3 fases; tabela
+  central de frame data (`kMoveTable`); hit/hurtbox por frame; dano/
+  hitstun/pushback/bloqueio/blockstun/chip damage; P2 real (teclado+
+  gamepad) com facing dinâmico via `UpdateFacing`.
 
-## Próxima fatia (F4b — Round/Partida)
+## Próxima fatia (F4c — HUD)
 
-Extrair módulos `stage` (bounds/render da arena) e `game` (fluxo de
-round/match). Sistema de round best-of-3, timer 99s contado dentro do
-step de simulação (`kFixedDt` por tick — determinístico, sem ler
-relógio), tela de intro "ROUND 1 / FIGHT!", KO screen. É aqui que
-`Knockdown`/`Win`/`Lose` da FSM ganham gatilho pela primeira vez (hit que
-zera a vida → Knockdown; fim de round → `Win`/`Lose` via nova função
-`SetRoundOutcome`, mantendo a regra de único ponto de transição).
-`Wakeup` provavelmente continua sem gatilho (só faz sentido com um
-knockdown "soft" que não termina o round — isso é F5+, ver decisão a
-registrar). Depois disso, **F4c — HUD**: barras de vida, medidor de super
-placeholder (enche ao dar/tomar dano, sem golpe pra gastar ainda),
-contador de combo com escala de dano, retratos placeholder.
+Barras de vida (uma por jogador, provavelmente no topo, ladeando o
+timer que `DrawMatchOverlay` já desenha); medidor de super placeholder
+que enche ao dar/tomar dano (`Fighter::super_meter`, campo novo — ainda
+sem golpe especial pra gastar, isso é F5); contador de combo com escala
+de dano (`Fighter::combo_hits`, incrementado em hits consecutivos sem o
+defensor voltar a Idle, resetado quando volta — dano do N-ésimo hit
+escalado pra baixo, requisito duro "combo counter com escala de dano");
+retratos placeholder (podem ser só retângulos com a cor de cada
+jogador). Depois da F4c, a F4 está completa e a próxima fase é a F5
+(movesets: 2 personagens, leve/médio/pesado, antiaéreo, agachado, salto
+com ataque, 1 projétil, 1 super, frame data balanceado de verdade).

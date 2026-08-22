@@ -162,6 +162,25 @@ void UpdateFacing(Fighter& a, Fighter& b) {
   b.facing_right = a.position.x >= b.position.x;
 }
 
+void ApplyKnockdownReaction(Fighter& defender) {
+  defender.state = FighterState::Knockdown;
+  defender.state_timer = 0;
+  defender.velocity = Vector2{0.0f, 0.0f};
+  defender.attack_phase = AttackPhase::None;
+}
+
+void SetRoundOutcome(Fighter& fighter, bool won) {
+  fighter.state = won ? FighterState::Win : FighterState::Lose;
+  fighter.state_timer = 0;
+  fighter.velocity = Vector2{0.0f, 0.0f};
+  fighter.attack_phase = AttackPhase::None;
+}
+
+void ResetFighterForNewRound(Fighter& fighter, float start_x) {
+  fighter = Fighter{};
+  fighter.position = Vector2{start_x, kFloorY};
+}
+
 void StepFighter(Fighter& fighter, const InputFrame& input) {
   const bool wants_left = DirectionHasLeft(input.direction);
   const bool wants_right = DirectionHasRight(input.direction);
