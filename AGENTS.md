@@ -40,14 +40,17 @@ src/input.h/.cpp       — Direction8, InputFrame (dado puro), InputBuffer
                          (circular, 10 frames), ReadInputFrame (único ponto
                          que toca IsKeyDown)
 src/fighter.h/.cpp     — FighterState (FSM completa), AttackPhase, Fighter,
-                         StepFighter (transição + física, puro/determinístico)
+                         StepFighter (transição + física, puro/determinístico),
+                         ApplyHitReaction/ApplyBlockReaction, ClampFighterToArena
+src/combat.h/.cpp      — MoveId, MoveData, tabela central de frame data
+                         (kMoveTable), FighterHurtbox/FighterHitbox, ResolveCombat
 docs/DECISOES.md       — log de decisões (data | decisão | motivo | alternativas)
 AGENTS.md / CLAUDE.md  — este arquivo (symlink)
 assets/                — ainda não existe; só entra na F5+ (spritesheets) e
                          F7 (áudio), sempre com fallback automático se ausente
 ```
 
-Próxima extração de módulo (por ordem do prompt): `combat` na F3, `stage`/`game` na F4.
+Próxima extração de módulo (por ordem do prompt): `stage`/`game` na F4.
 
 ## Convenções (resumo — ver o prompt original para o texto completo)
 
@@ -67,41 +70,57 @@ Próxima extração de módulo (por ordem do prompt): `combat` na F3, `stage`/`g
 
 **F0 — Fundação: CONCLUÍDA** (commit `52b2785`).
 **F1 — Lutador vivo: CONCLUÍDA** (commit `42a8202`).
-**F2 — FSM + buffer: CONCLUÍDA.**
+**F2 — FSM + buffer: CONCLUÍDA** (commit `6e0d46d`).
+**F3 — Combate: CONCLUÍDA.**
 
-- Módulos extraídos (`input.h/.cpp`, `fighter.h/.cpp`) — regra do prompt
-  manda extrair na F2 independente do tamanho do arquivo.
-- `InputBuffer` (`src/input.h`) circular de 10 `InputFrame`s, alimentado a
-  cada frame de render (`input_buffer.Push(...)` em `main.cpp`) e
-  consultado de fato (`StepFighter` recebe `input_buffer.AtDelay(0)`).
-- FSM completa (`FighterState`, 14 estados do requisito duro) em
-  `fighter.h`; transição única e explícita em `ComputeNextState`
-  (`fighter.cpp`). Estados sem gatilho ainda (`BlockStanding`,
-  `BlockCrouching`, `Hitstun`, `Blockstun`, `Knockdown`, `Wakeup`, `Win`,
-  `Lose`) existem no enum e no `switch`, mas são self-loop até F3/F4
-  trazerem oponente/combate real.
-- Ataque neutro com `AttackPhase` (Startup/Active/Recovery), não
-  cancelável, indisponível no ar; cor do retângulo muda por fase
-  (laranja/vermelho/violeta). Borda de subida do botão detectada via
-  `Fighter::attack_button_held` (estado interno da sim, não do
-  `InputFrame` — ver `docs/DECISOES.md`).
-- `Fighter::facing_right` fixo em `true` por ora (sem P2 pra virar de
-  frente); `WalkForward`/`WalkBackward` já usam essa semântica.
-- Verificado com smoke test temporário (input+botão scriptados, log só em
-  mudança de estado/fase, revertido antes do commit): parede, pulo
-  (auto-hop com Up segurado, esperado), agachar, ataque com as 3 fases nos
-  frames certos, e segurar o botão **não** gera ataques repetidos. Build
+- Módulo `combat.h/.cpp` extraído (ordem `input, fighter, combat, stage, game`).
+- `MoveData`/`kMoveTable` (`combat.cpp`): tabela central com o único golpe
+  existente (`LightAttack`) — startup/active/recovery/dano/chip/hitstun/
+  blockstun/pushback/hitbox, tudo num lugar só.
+- `FighterHurtbox`/`FighterHitbox` calculam as caixas por frame a partir
+  do estado atual (hurtbox encolhe ao agachar; hitbox espelha com
+  `facing_right`). `ResolveCombat(atacante, defensor, input_do_defensor)`
+  faz o AABB, e se acertar: dano+hitstun+pushback normal, ou chip+
+  blockstun+pushback reduzido se o defensor segurar "pra trás" (checado
+  reativamente no instante do hit — sem stance de guarda persistente
+  ainda, ver `docs/DECISOES.md`).
+- `ApplyHitReaction`/`ApplyBlockReaction` (fighter.cpp) aplicam a reação
+  sem violar "único ponto de transição"; `Hitstun`/`Blockstun` da FSM
+  ganharam gatilho real pela primeira vez.
+- Segundo `Fighter` ("dummy", parado, sem input) adicionado só pra
+  existir alvo — `ResolveCombat` já é chamado nos dois sentidos (P1→P2 e
+  P2→P1), pronto pra quando a F4 trouxer P2 jogável de verdade. Cores
+  distintas por lutador (MAROON/DARKBLUE) por já valer a regra visual
+  "dois tons pra P1/P2" desde que há 2 corpos em tela.
+- Allow-list de estados com controle direcional (`Idle/WalkForward/
+  WalkBackward/Jump`) substituiu a deny-list da F2 — trava movimento em
+  qualquer estado novo por padrão (Hitstun/Blockstun agora corretos).
+- Verificado com smoke test temporário (2 cenários scriptados — hit limpo
+  e hit bloqueado com o dummy encostado na parede pra não fugir do
+  hitbox andando, revertido antes do commit): dano 8/hitstun 14 no hit
+  limpo, chip 1/blockstun 8 no bloqueado, pushback correto nos dois
+  corpos (inclusive com o clamp de parede segurando o defensor). Build
   limpo nos dois presets, ASan sem leak do nosso código.
-- Ainda sem combate real (hitbox/hurtbox, dano, block de verdade) — isso é
-  F3. Ainda um único lutador (sem P2, sem HUD) — isso é F4.
+- Combo counter, knockdown/wakeup real, juggle e medidor de super **não**
+  entraram (não são do bullet de F3 — ver `docs/DECISOES.md`). Ainda um
+  único lutador jogável (dummy não é P2 real) — isso é F4.
 
-## Próxima fatia (F3 — Combate)
+- (resumo F2, detalhes no commit `6e0d46d`): módulos `input`/`fighter`
+  extraídos; `InputBuffer` circular de 10 frames alimentado e consultado
+  de verdade; FSM completa (14 estados) com transição única em
+  `ComputeNextState`; ataque neutro com 3 fases visíveis; borda de subida
+  do botão via `Fighter::attack_button_held`; `facing_right` fixo em
+  `true` (dinâmico só na F4).
 
-Extrair módulo `combat` (frame data table, hitbox/hurtbox por frame).
-Tabela central de frame data para os golpes (por ora só o ataque neutro);
-hurtboxes (corpo) e hitboxes (golpe) calculadas por frame a partir dessa
-tabela; acerto gera dano, hitstun, pushback (ainda sem P2 real — pode
-precisar de um segundo `Fighter` de teste/dummy só pra validar colisão de
-caixas antes da F4 trazer o P2 jogável); defesa alta/baixa; blockstun;
-chip damage. É aqui que os estados `BlockStanding`/`BlockCrouching`/
-`Hitstun`/`Blockstun` da FSM ganham gatilho pela primeira vez.
+## Próxima fatia (F4 — Partida)
+
+Extrair módulos `stage`/`game`. Trocar o `dummy` estático por P2 jogável
+de verdade (segundo `InputBuffer`, teclado — WASD ou similar — e suporte
+a gamepad via raylib); com dois jogadores reais, dar `facing_right`
+dinâmico (vira pra encarar o oponente, o que também é o momento natural
+de wirar `BlockStanding`/`BlockCrouching` como stance visual persistente,
+não só reativa no hit). Sistema de round best-of-3, timer 99s, tela de
+intro "ROUND 1 / FIGHT!", KO screen (é aqui que `Knockdown`/`Win`/`Lose`
+da FSM ganham gatilho pela primeira vez). HUD: barras de vida, medidor de
+super (placeholder, ainda sem golpe especial), contador de combo,
+retratos placeholder.

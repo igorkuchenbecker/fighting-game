@@ -17,7 +17,8 @@ constexpr int kAttackRecoveryFrames = 10;
 // Decide o próximo estado da FSM a partir do estado atual + fatos do
 // frame (direção pedida, borda de subida do botão de ataque, se está no
 // chão). Único ponto de transição — nenhum outro lugar do código muda
-// `Fighter::state` fora daqui.
+// `Fighter::state` fora daqui (exceto ApplyHitReaction/ApplyBlockReaction,
+// que reagem a um evento de combate já confirmado, não a input).
 FighterState ComputeNextState(const Fighter& fighter, bool wants_left, bool wants_right,
                                bool wants_up, bool wants_down, bool attack_just_pressed) {
   switch (fighter.state) {
@@ -40,16 +41,25 @@ FighterState ComputeNextState(const Fighter& fighter, bool wants_left, bool want
       return fighter.is_grounded ? FighterState::Idle : FighterState::Jump;
 
     case FighterState::Attack:
-      // Não cancelável no F2: a saída é controlada pelo timer de fases em
-      // AdvanceAttackPhase, não por input.
+      // Não cancelável no F2/F3: a saída é controlada pelo timer de fases
+      // em AdvanceAttackPhase, não por input.
       return fighter.attack_phase == AttackPhase::None ? FighterState::Idle
                                                          : FighterState::Attack;
 
-    // Sem gatilho ainda: chegam com o combate/oponente real (F3/F4).
+    case FighterState::Hitstun:
+      return fighter.state_timer >= fighter.stun_target_frames ? FighterState::Idle
+                                                                 : FighterState::Hitstun;
+
+    case FighterState::Blockstun:
+      return fighter.state_timer >= fighter.stun_target_frames ? FighterState::Idle
+                                                                 : FighterState::Blockstun;
+
+    // Sem gatilho ainda: BlockStanding/BlockCrouching viram guard-stance
+    // visual de verdade só na F4 (quando há P2 segurando "pra trás" o
+    // tempo todo, não só no instante do hit — ver docs/DECISOES.md).
+    // Knockdown/Wakeup/Win/Lose chegam com o sistema de round da F4.
     case FighterState::BlockStanding:
     case FighterState::BlockCrouching:
-    case FighterState::Hitstun:
-    case FighterState::Blockstun:
     case FighterState::Knockdown:
     case FighterState::Wakeup:
     case FighterState::Win:
@@ -85,11 +95,17 @@ void AdvanceAttackPhase(Fighter& fighter) {
   }
 }
 
-void ApplyPhysics(Fighter& fighter, bool wants_left, bool wants_right) {
-  const bool can_move_horizontally =
-      fighter.state != FighterState::Crouch && fighter.state != FighterState::Attack;
+// Estados em que o lutador ainda controla a própria velocidade horizontal
+// pela direção segurada. Fora dessa lista (Crouch, Attack, Hitstun,
+// Blockstun, e o que vier depois) o corpo fica travado horizontalmente,
+// só sujeito a gravidade/pushback.
+bool AllowsDirectionalMovement(FighterState state) {
+  return state == FighterState::Idle || state == FighterState::WalkForward ||
+         state == FighterState::WalkBackward || state == FighterState::Jump;
+}
 
-  if (can_move_horizontally) {
+void ApplyPhysics(Fighter& fighter, bool wants_left, bool wants_right) {
+  if (AllowsDirectionalMovement(fighter.state)) {
     if (wants_left && !wants_right) {
       fighter.velocity.x = -kMoveSpeed;
     } else if (wants_right && !wants_left) {
@@ -117,11 +133,29 @@ void ApplyPhysics(Fighter& fighter, bool wants_left, bool wants_right) {
     fighter.is_grounded = true;
   }
 
+  ClampFighterToArena(fighter);
+}
+
+}  // namespace
+
+void ClampFighterToArena(Fighter& fighter) {
   fighter.position.x = std::clamp(fighter.position.x, kArenaLeft + kFighterHalfWidth,
                                    kArenaRight - kFighterHalfWidth);
 }
 
-}  // namespace
+void ApplyHitReaction(Fighter& defender, int hitstun_frames) {
+  defender.state = FighterState::Hitstun;
+  defender.state_timer = 0;
+  defender.stun_target_frames = hitstun_frames;
+  defender.attack_phase = AttackPhase::None;
+}
+
+void ApplyBlockReaction(Fighter& defender, int blockstun_frames) {
+  defender.state = FighterState::Blockstun;
+  defender.state_timer = 0;
+  defender.stun_target_frames = blockstun_frames;
+  defender.attack_phase = AttackPhase::None;
+}
 
 void StepFighter(Fighter& fighter, const InputFrame& input) {
   const bool wants_left = DirectionHasLeft(input.direction);
@@ -139,12 +173,16 @@ void StepFighter(Fighter& fighter, const InputFrame& input) {
 
   if (fighter.state != previous_state) {
     fighter.state_timer = 0;
-    fighter.attack_phase =
-        fighter.state == FighterState::Attack ? AttackPhase::Startup : AttackPhase::None;
-  }
-
-  if (fighter.state == FighterState::Attack) {
+    if (fighter.state == FighterState::Attack) {
+      fighter.attack_phase = AttackPhase::Startup;
+      fighter.current_attack_has_hit = false;
+    } else {
+      fighter.attack_phase = AttackPhase::None;
+    }
+  } else if (fighter.state == FighterState::Attack) {
     AdvanceAttackPhase(fighter);
+  } else if (fighter.state == FighterState::Hitstun || fighter.state == FighterState::Blockstun) {
+    ++fighter.state_timer;
   }
 
   ApplyPhysics(fighter, wants_left, wants_right);
