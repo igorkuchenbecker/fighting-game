@@ -19,5 +19,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(raylib)
 
-add_executable(fighting_game src/main.cpp)
+add_executable(fighting_game
+  src/main.cpp
+  src/input.cpp
+  src/fighter.cpp
+)
 target_link_libraries(fighting_game PRIVATE raylib)
