@@ -68,8 +68,11 @@ const MoveData& GetMoveData(MoveId move) {
       {13, 6, 20, 18, 3, 24, 14, 16.0f, 9.0f, Rectangle{kFighterHalfWidth, -170.0f, 55.0f, 110.0f}},
       // CrouchingLight — golpe agachado, hitbox baixo
       {5, 4, 9, 6, 1, 12, 7, 8.0f, 5.0f, Rectangle{kFighterHalfWidth, -40.0f, 45.0f, 30.0f}},
-      // JumpingLight — único golpe aéreo por ora, hitbox na altura do peito
-      {5, 6, 8, 10, 2, 16, 9, 9.0f, 5.0f, Rectangle{kFighterHalfWidth, -70.0f, 55.0f, 50.0f}},
+      // JumpingLight — único golpe aéreo por ora, hitbox na altura do peito.
+      // F5e: active_frames baixado de 6 pra 4 — com active/recovery iguais
+      // ou melhores que LightStanding E mais dano, não sobrava trade-off
+      // nenhum pra compensar o risco de pular (só o startup ficava pior).
+      {5, 4, 8, 10, 2, 16, 9, 9.0f, 5.0f, Rectangle{kFighterHalfWidth, -70.0f, 55.0f, 50.0f}},
       // Projectile — hitbox aqui não é usado (ResolveCombat pula golpes
       // Projectile; quem colide é ProjectileHitbox, ver projectile.h)
       {8, 1, 20, 12, 2, 16, 9, 12.0f, 6.0f, Rectangle{0.0f, 0.0f, 0.0f, 0.0f}},

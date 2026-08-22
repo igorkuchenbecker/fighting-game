@@ -13,7 +13,11 @@ struct Projectile {
 };
 
 constexpr float kProjectileSpeed = 10.0f;
-constexpr int kProjectileLifetimeFrames = 90;  // ~1.5s a 60Hz
+// A arena tem ~1080px de ponta a ponta (kArenaRight-kArenaLeft, stage.h);
+// a 10px/frame, precisa de >=108 frames pra atravessar inteira. 130
+// garante alcance de tela cheia com folga (F5e — sem isso o projétil
+// expirava antes de cruzar a arena, um zoner sem alcance de verdade).
+constexpr int kProjectileLifetimeFrames = 130;
 constexpr float kProjectileHalfWidth = 12.0f;
 constexpr float kProjectileHalfHeight = 12.0f;
 

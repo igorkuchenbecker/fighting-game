@@ -234,19 +234,37 @@ Ordem de extração do prompt (`input, fighter, combat, stage, game`) completa.
   Active do super (sem invuln), conecta normalmente. Build limpo nos
   dois presets, ASan sem leak.
 
-## Próxima fatia (F5e — Balanceamento de verdade)
+**F5e — Balanceamento (sub-fatia da F5, última): CONCLUÍDA.**
 
-Última sub-fatia da F5. Os valores de frame data de hoje (startup/active/
-recovery/dano/etc. de todos os 7 golpes) são placeholder consistente
-("pesado lento/forte, leve rápido/fraco" seguido em regra geral), mas
-nunca foram jogados/ajustados por feel real — só verificados
-matematicamente nos smoke tests. Essa fatia é sobre jogar de verdade
-(ou simular partidas mais longas) e ajustar números: startup/recovery
-muito genéricos hoje, hitboxes podem precisar de ajuste fino de alcance,
-o custo/benefício do super (dano 35 por startup 10/recovery 30) precisa
-de calibragem. Também é o momento natural pra decidir se o Warrior
-ganha algo que o distinga mais do Gunner além de não ter projétil (ver
-`docs/DECISOES.md` — decisão em aberto, não urgente). Depois da F5e, a
-F5 está completa e a próxima fase é a **F6** (modo treino, overlay de
-frame data, flag `--selftest` de determinismo, corrigir tudo que o
-sanitizer acusar).
+- Sem ferramenta de simulação de input no ambiente pra "jogar de
+  verdade", o balanceamento foi feito por análise de vantagem de frame
+  no bloqueio (`blockstun_frames − recovery_frames`, métrica padrão do
+  gênero) pros 7 golpes — todos dentro do esperado (normais entre −2 e
+  −6, jump-in +1, projétil e super bem negativos mas compensados por
+  alcance/invuln). Detalhe completo em `docs/DECISOES.md`.
+- 2 problemas concretos corrigidos pela análise: `kProjectileLifetimeFrames`
+  90→130 (projétil expirava antes de cruzar a arena inteira — testado,
+  agora atravessa com folga); `MoveId::JumpingLight` `active_frames` 6→4
+  (dominava `LightStanding` em toda categoria sem trade-off nenhum).
+- Warrior/Gunner seguem só se diferenciando pelo projétil — decisão de
+  dar mais identidade ao Warrior fica em aberto pra quando houver
+  playtest real (ver `docs/DECISOES.md`, não é bloqueante).
+
+**F5 (Movesets) está COMPLETA**: 2 personagens, leve/médio/pesado,
+antiaéreo, agachado, salto com ataque, 1 projétil (Gunner), 1 super com
+invulnerabilidade, frame data balanceada pelos princípios do gênero
+(pesado lento/forte, leve rápido/fraco, vantagem de frame coerente).
+
+## Próxima fatia (F6 — Treino + robustez)
+
+Modo treino: dummy infinito (não morre/reseta vida ao chegar em 0? ou
+só não conta pra vitória — decisão a tomar), tecla pra exibir hitboxes/
+hurtboxes (`FighterHitbox`/`FighterHurtbox`/`ProjectileHitbox` já
+existem, só falta desenhar), overlay de frame data (startup/active/
+recovery do golpe atual, já tudo em `GetMoveData`). Flag `--selftest`:
+roda 3600 ticks com inputs scriptados, roda de novo com a MESMA seed e
+compara hash do estado final — prova de determinismo (hoje a simulação
+já não lê relógio/disco, só falta o harness de hash+replay). Corrigir
+tudo que o sanitizer acusar (até agora zero leaks/UB detectados em
+qualquer fatia — se continuar assim, esse item já está cumprido, mas
+vale rodar um teste mais longo/variado antes de dar como certo).
