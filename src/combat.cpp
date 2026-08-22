@@ -98,16 +98,16 @@ Rectangle FighterHitbox(const Fighter& fighter, MoveId move) {
                     data.hitbox.width, data.hitbox.height};
 }
 
-void ResolveCombat(Fighter& attacker, Fighter& defender, const InputFrame& defender_input) {
+CombatOutcome ResolveCombat(Fighter& attacker, Fighter& defender, const InputFrame& defender_input) {
   if (attacker.state != FighterState::Attack || attacker.attack_phase != AttackPhase::Active) {
-    return;
+    return CombatOutcome::None;
   }
-  if (attacker.current_attack_has_hit) return;
-  if (attacker.current_move == MoveId::Projectile) return;  // resolvido por ResolveProjectileHit
-  if (IsInvulnerable(defender)) return;  // startup do super do defensor
+  if (attacker.current_attack_has_hit) return CombatOutcome::None;
+  if (attacker.current_move == MoveId::Projectile) return CombatOutcome::None;  // ResolveProjectileHit
+  if (IsInvulnerable(defender)) return CombatOutcome::None;  // startup do super do defensor
 
   const MoveId move = attacker.current_move;
-  if (!BoxesOverlap(FighterHitbox(attacker, move), FighterHurtbox(defender))) return;
+  if (!BoxesOverlap(FighterHitbox(attacker, move), FighterHurtbox(defender))) return CombatOutcome::None;
 
   attacker.current_attack_has_hit = true;
   const MoveData& data = GetMoveData(move);
@@ -130,13 +130,15 @@ void ResolveCombat(Fighter& attacker, Fighter& defender, const InputFrame& defen
 
   ClampFighterToArena(defender);
   ClampFighterToArena(attacker);
+
+  return blocked ? CombatOutcome::Blocked : CombatOutcome::Hit;
 }
 
-void ResolveProjectileHit(Projectile& projectile, Fighter& owner, Fighter& target,
-                           const InputFrame& target_input) {
-  if (!projectile.active) return;
-  if (IsInvulnerable(target)) return;  // startup do super do alvo
-  if (!BoxesOverlap(ProjectileHitbox(projectile), FighterHurtbox(target))) return;
+CombatOutcome ResolveProjectileHit(Projectile& projectile, Fighter& owner, Fighter& target,
+                                    const InputFrame& target_input) {
+  if (!projectile.active) return CombatOutcome::None;
+  if (IsInvulnerable(target)) return CombatOutcome::None;  // startup do super do alvo
+  if (!BoxesOverlap(ProjectileHitbox(projectile), FighterHurtbox(target))) return CombatOutcome::None;
 
   projectile.active = false;  // só acerta 1 vez
   const MoveData& data = GetMoveData(MoveId::Projectile);
@@ -156,4 +158,6 @@ void ResolveProjectileHit(Projectile& projectile, Fighter& owner, Fighter& targe
   const float push_dir = source_is_to_my_left ? 1.0f : -1.0f;
   target.position.x += push_dir * (blocked ? data.pushback_block : data.pushback_hit);
   ClampFighterToArena(target);
+
+  return blocked ? CombatOutcome::Blocked : CombatOutcome::Hit;
 }

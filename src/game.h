@@ -29,6 +29,19 @@ struct Match {
   Projectile p2_projectile;
 };
 
+// Fatos que aconteceram num tick de UpdateMatch — pro chamador reagir
+// (ex.: tocar som) sem que a simulação em si precise saber de áudio/
+// render. Todo tick fora de RoundPhase::Fighting retorna tudo false.
+struct MatchEvents {
+  bool p1_hit_landed = false;
+  bool p1_hit_blocked = false;
+  bool p2_hit_landed = false;
+  bool p2_hit_blocked = false;
+  bool p1_jumped = false;
+  bool p2_jumped = false;
+  bool knockout_happened = false;
+};
+
 // Orquestra um passo de partida: durante RoundPhase::Fighting, avança a
 // simulação dos dois lutadores (facing, física, combate) e o timer do
 // round; nas demais fases, os lutadores ficam congelados e só o relógio
@@ -36,8 +49,8 @@ struct Match {
 // KO, encerrar a partida). Chamado 1x por tick fixo de 1/60s — o timer é
 // decrementado por `kFixedDt` (constante, não relógio de parede), então
 // continua determinístico.
-void UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_input,
-                  const InputFrame& p2_input);
+MatchEvents UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_input,
+                         const InputFrame& p2_input);
 
 void DrawMatchOverlay(const Match& match);
 

@@ -116,8 +116,9 @@ void DrawComboText(int bar_x, int y, int combo_hits, bool anchor_right) {
 
 }  // namespace
 
-void UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_input,
-                  const InputFrame& p2_input) {
+MatchEvents UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_input,
+                         const InputFrame& p2_input) {
+  MatchEvents events;
   ++match.phase_timer;
 
   switch (match.phase) {
@@ -130,10 +131,15 @@ void UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_in
 
     case RoundPhase::Fighting: {
       UpdateFacing(p1, p2);
+      const FighterState p1_state_before = p1.state;
+      const FighterState p2_state_before = p2.state;
       const AttackPhase p1_phase_before = p1.attack_phase;
       const AttackPhase p2_phase_before = p2.attack_phase;
       StepFighter(p1, p1_input);
       StepFighter(p2, p2_input);
+      events.p1_jumped = p1_state_before != FighterState::Jump && p1.state == FighterState::Jump;
+      events.p2_jumped = p2_state_before != FighterState::Jump && p2.state == FighterState::Jump;
+
       MaybeSpawnProjectile(p1, match.p1_projectile, p1_phase_before);
       MaybeSpawnProjectile(p2, match.p2_projectile, p2_phase_before);
 
@@ -141,15 +147,23 @@ void UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_in
       StepProjectile(match.p2_projectile);
 
       // Resolvido nos dois sentidos: qualquer jogador pode ser o atacante.
-      ResolveCombat(p1, p2, p2_input);
-      ResolveCombat(p2, p1, p1_input);
-      ResolveProjectileHit(match.p1_projectile, p1, p2, p2_input);
-      ResolveProjectileHit(match.p2_projectile, p2, p1, p1_input);
+      const CombatOutcome p1_attacks_p2 = ResolveCombat(p1, p2, p2_input);
+      const CombatOutcome p2_attacks_p1 = ResolveCombat(p2, p1, p1_input);
+      const CombatOutcome proj1_hits_p2 = ResolveProjectileHit(match.p1_projectile, p1, p2, p2_input);
+      const CombatOutcome proj2_hits_p1 = ResolveProjectileHit(match.p2_projectile, p2, p1, p1_input);
+
+      events.p2_hit_landed = p1_attacks_p2 == CombatOutcome::Hit || proj1_hits_p2 == CombatOutcome::Hit;
+      events.p2_hit_blocked =
+          p1_attacks_p2 == CombatOutcome::Blocked || proj1_hits_p2 == CombatOutcome::Blocked;
+      events.p1_hit_landed = p2_attacks_p1 == CombatOutcome::Hit || proj2_hits_p1 == CombatOutcome::Hit;
+      events.p1_hit_blocked =
+          p2_attacks_p1 == CombatOutcome::Blocked || proj2_hits_p1 == CombatOutcome::Blocked;
 
       match.timer_seconds -= static_cast<float>(kFixedDt);
 
       if (p1.health <= 0 || p2.health <= 0) {
         match.end_reason = RoundEndReason::Knockout;
+        events.knockout_happened = true;
         EndRound(match, p1, p2);
       } else if (match.timer_seconds <= 0.0f) {
         match.timer_seconds = 0.0f;
@@ -168,6 +182,8 @@ void UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_in
     case RoundPhase::MatchOver:
       break;  // fica parado; sem menu de "jogar de novo" ainda (fora do escopo da F4)
   }
+
+  return events;
 }
 
 void DrawFighter(const Fighter& fighter, Color base_color, const CharacterSprite* sprite) {

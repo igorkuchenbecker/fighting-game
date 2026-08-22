@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "audio.h"
 #include "fighter.h"
 #include "game.h"
 #include "input.h"
@@ -58,6 +59,11 @@ int main(int argc, char** argv) {
   CharacterSprite p1_sprite = LoadCharacterSprite(p1.character);
   CharacterSprite p2_sprite = LoadCharacterSprite(p2.character);
 
+  // Efeitos sonoros SE existirem em assets/audio/; silencioso se não
+  // (mesmo padrão fallback das sprites).
+  InitAudioDevice();
+  SoundBank sound_bank = LoadSoundBank();
+
   InputBuffer p1_buffer;
   InputBuffer p2_buffer;
   double accumulator = 0.0;
@@ -75,7 +81,11 @@ int main(int argc, char** argv) {
     // Simulação avança em passos fixos de 1/60s, desacoplada do delta-time
     // variável do render (pré-requisito para determinismo/rollback futuro).
     while (accumulator >= kFixedDt) {
-      UpdateMatch(match, p1, p2, p1_buffer.AtDelay(0), p2_buffer.AtDelay(0));
+      const MatchEvents events = UpdateMatch(match, p1, p2, p1_buffer.AtDelay(0), p2_buffer.AtDelay(0));
+      if (events.p1_hit_landed || events.p2_hit_landed) PlayHitSound(sound_bank);
+      if (events.p1_hit_blocked || events.p2_hit_blocked) PlayBlockSound(sound_bank);
+      if (events.p1_jumped || events.p2_jumped) PlayJumpSound(sound_bank);
+      if (events.knockout_happened) PlayKoSound(sound_bank);
       accumulator -= kFixedDt;
     }
 
@@ -90,6 +100,8 @@ int main(int argc, char** argv) {
     EndDrawing();
   }
 
+  UnloadSoundBank(sound_bank);
+  CloseAudioDevice();
   UnloadCharacterSprite(p1_sprite);
   UnloadCharacterSprite(p2_sprite);
   CloseWindow();

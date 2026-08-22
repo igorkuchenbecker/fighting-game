@@ -38,7 +38,7 @@ automáticos. Fecha com o botão de fechar da janela (ou Alt+F4).
 ## Mapa de arquivos
 
 ```
-CMakeLists.txt        — alvo fighting_game (11 .cpp), FetchContent do raylib (tag 5.5)
+CMakeLists.txt        — alvo fighting_game (12 .cpp), FetchContent do raylib (tag 5.5)
 CMakePresets.json      — presets debug/release (flags descritas acima)
 src/main.cpp           — orquestração fina: lê argv (--selftest/--training),
                          senão janela + loop de timestep fixo, leitura de
@@ -55,20 +55,23 @@ src/fighter.h/.cpp     — FighterState (FSM completa), AttackPhase, MoveId,
                          ApplyKnockdownReaction/SetRoundOutcome/AddSuperMeter,
                          ClampFighterToArena, ResetFighterForNewRound
 src/combat.h/.cpp      — MoveData, tabela central de frame data (kMoveTable,
-                         7 golpes), FighterHurtbox/FighterHitbox, ResolveCombat
-                         (corpo-a-corpo) e ResolveProjectileHit (projétil),
-                         ambos via ApplyMoveOutcome (dano/hitstun/pushback/
-                         bloqueio/blockstun/chip/combo/meter compartilhado)
+                         7 golpes), FighterHurtbox/FighterHitbox, CombatOutcome,
+                         ResolveCombat (corpo-a-corpo) e ResolveProjectileHit
+                         (projétil) — ambos via ApplyMoveOutcome (dano/hitstun/
+                         pushback/bloqueio/blockstun/chip/combo/meter
+                         compartilhado), retornam CombatOutcome pro chamador
+                         reagir (ex.: som) sem a simulação saber de áudio
 src/projectile.h/.cpp — Projectile (entidade independente do Fighter),
                          SpawnProjectile/StepProjectile/ProjectileHitbox/
                          DrawProjectile
 src/stage.h/.cpp       — kScreenWidth/Height, kArenaLeft/Right/kFloorY, DrawArena
 src/game.h/.cpp        — RoundPhase, Match (inclui os 2 slots de Projectile),
-                         kFixedDt, UpdateMatch (orquestra facing/física/
-                         combate/projéteis durante Fighting + fluxo de
-                         round), DrawFighter/DrawMatchOverlay (intro/timer/
-                         KO/resultado)/DrawHud (vida/meter/combo/retrato)/
-                         DrawProjectiles — camada de apresentação da partida
+                         MatchEvents (hit/bloqueio/pulo/KO do tick), kFixedDt,
+                         UpdateMatch (orquestra facing/física/combate/
+                         projéteis durante Fighting + fluxo de round, retorna
+                         MatchEvents), DrawFighter/DrawMatchOverlay (intro/
+                         timer/KO/resultado)/DrawHud (vida/meter/combo/
+                         retrato)/DrawProjectiles — camada de apresentação
 src/selftest.h/.cpp    — RunSelfTest: harness de --selftest (LCG de seed
                          fixa + hash FNV-1a do estado final, 2 execuções
                          comparadas, headless)
@@ -78,13 +81,17 @@ src/training.h/.cpp    — RunTrainingMode: loop do modo treino (dummy
 src/sprites.h/.cpp     — CharacterSprite, LoadCharacterSprite/
                          UnloadCharacterSprite (fallback automático se o
                          arquivo não existir em assets/)
+src/audio.h/.cpp       — SoundBank, LoadSoundBank/UnloadSoundBank,
+                         PlayHitSound/PlayBlockSound/PlayJumpSound/PlayKoSound
+                         (fallback automático se assets/audio/*.wav não existir)
 docs/DECISOES.md       — log de decisões (data | decisão | motivo | alternativas)
 AGENTS.md / CLAUDE.md  — este arquivo (symlink)
 assets/                — ainda não existe (nenhuma arte/áudio real
-                         fornecida até agora). O código de carregamento
-                         (sprites.h) já suporta assets/warrior.png e
-                         assets/gunner.png se um dia existirem — sempre
-                         com fallback automático, sem crash, sem warning
+                         fornecida até agora). O código de carregamento já
+                         suporta, se um dia existirem: assets/warrior.png,
+                         assets/gunner.png (sprites.h) e assets/audio/
+                         {hit,block,jump,ko}.wav (audio.h) — sempre com
+                         fallback automático, sem crash, sem warning
 ```
 
 Ordem de extração do prompt (`input, fighter, combat, stage, game`) completa.
@@ -349,14 +356,45 @@ próprio `--selftest`.
   Build limpo nos dois presets, ASan sem leak; `--selftest` re-verificado
   com o mesmo hash de sempre (sprites não tocam a simulação).
 
-## Próxima fatia (F7b — Áudio, se sobrar fôlego)
+**F7b — Áudio (sub-fatia da F7): CONCLUÍDA.**
 
-Áudio opcional via raylib audio (`InitAudioDevice`/`LoadSound`/
-`PlaySound`), arquivos em `assets/audio/`, silencioso se ausentes (mesmo
-padrão fallback de `sprites.h` — checar `FileExists` antes de carregar).
-Prováveis gatilhos: golpe conectando (hit/block diferentes), pulo, KO.
-Depois: **F7c** — IA dummy básica com seed (anda, bloqueia, bate
-aleatório; primeiro uso real de RNG no projeto — precisa de seed
-explícita, nunca `rand()`/`time()` cru, requisito duro). Como o roadmap
-diz "se sobrar fôlego", a F7 inteira é a mais opcional de todas — o jogo
-já está completo e jogável (F0–F6) sem ela.
+- Módulo `audio.h/.cpp` novo: `SoundBank{Sound×4, bool loaded×4}`,
+  `LoadSoundBank()` (carrega `assets/audio/{hit,block,jump,ko}.wav` SE
+  existir — mesmo padrão fallback de `sprites.h`), `UnloadSoundBank`,
+  `PlayHitSound`/`PlayBlockSound`/`PlayJumpSound`/`PlayKoSound` (cada
+  uma só chama `PlaySound` se o respectivo `_loaded` for true).
+- `ResolveCombat`/`ResolveProjectileHit` (combat.h/.cpp) passaram de
+  `void` pra retornar `CombatOutcome{None,Hit,Blocked}`; `UpdateMatch`
+  passou a retornar `MatchEvents` (hit/bloqueio/pulo/KO por jogador
+  nesse tick, pulo detectado comparando `FighterState` antes/depois do
+  `StepFighter`, mesmo padrão do spawn de projétil). A simulação
+  continua sem saber de áudio — só relata fatos; quem decide tocar som
+  é `main.cpp`.
+- `main.cpp`: `InitAudioDevice()`/`LoadSoundBank()` depois de
+  `InitWindow`, reage aos `MatchEvents` de cada tick chamando
+  `PlayXSound`, descarrega/fecha antes de `CloseWindow`. Modo treino e
+  `--selftest` continuam sem áudio (fora do escopo, `--selftest` é
+  headless).
+- Verificado: (a) fallback sem `assets/audio/` — todos `_loaded=0`, sem
+  crash; evento de pulo forçado (scripted) disparou mesmo sem som pra
+  tocar (guard funcionando); (b) carregamento — gerei
+  `hit/block/jump/ko.wav` placeholder via `sox` (tons senoidais),
+  `_loaded=1` nos 4, evento de pulo tocou o som sem crash. Placeholders
+  deletados depois (mesma lógica da F7a — não é áudio real).
+  `--selftest` re-verificado: mesmo hash de sempre, confirma que
+  `UpdateMatch` retornando `MatchEvents` não afeta o determinismo. Build
+  limpo nos dois presets, ASan sem leak.
+
+## Próxima fatia (F7c — IA dummy, se sobrar fôlego)
+
+Última sub-fatia da F7 (e do roadmap inteiro). IA dummy básica com seed
+(anda, bloqueia, bate aleatório) — primeiro uso real de RNG no projeto;
+precisa de seed explícita (provavelmente um LCG como o de
+`selftest.cpp`, ou um novo gerador dedicado), nunca `rand()`/`time()`
+cru (requisito duro). Onde ela entra: provavelmente substitui o dummy
+estático do modo treino (`training.cpp`) por um comportamento simples
+orientado por estado (parado→anda até certa distância→bloqueia se o
+jogador atacar por perto→ataca de vez em quando), tudo determinístico
+dada a seed. Como o roadmap diz "se sobrar fôlego", a F7 inteira é a
+mais opcional de todas — o jogo já está completo e jogável (F0–F6) sem
+ela; F7a/F7b já são além do mínimo pedido.
