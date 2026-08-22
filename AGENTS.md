@@ -58,22 +58,36 @@ assets/               — ainda não existe; só entra na F5+ (spritesheets) e
 
 ## Estado atual
 
-**F0 — Fundação: CONCLUÍDA.**
+**F0 — Fundação: CONCLUÍDA** (commit `52b2785`).
+**F1 — Lutador vivo: CONCLUÍDA.**
 
-- Projeto criado em `~/fighting-game/` (ver `docs/DECISOES.md` sobre o motivo).
-- CMake + presets debug (ASan+UBSan)/release funcionando, raylib via
-  FetchContent (tag `5.5`), zero warnings nos dois presets.
-- `src/main.cpp`: janela 1280×720, loop de timestep fixo 60Hz com
-  acumulador, imprime `tick` por passo de simulação, `BeginDrawing`/
-  `EndDrawing` com fundo preto. Sem lógica de jogo ainda.
-- Verificado manualmente: builda limpo (release e debug), roda a 60fps,
-  `CloseWindow()` executa e ASan não acusa leak do nosso código (leaks do
-  driver NVIDIA suprimidos — ver `docs/DECISOES.md`).
-- Git inicializado, primeiro commit ainda por vir nesta mesma sessão.
+- `InputFrame { Direction8 direction; uint8_t buttons; }` já existe: a
+  simulação (`StepFighter`) só recebe dado puro, nunca lê teclado — só
+  `ReadDirection8()` toca a API do raylib, uma vez por iteração do loop
+  externo (fora do `while` de steps fixos). Buffer circular de 10 frames
+  ainda não existe (chega na F2).
+- `Fighter { position, velocity, is_grounded, is_crouching }`: anda
+  esquerda/direita (`kMoveSpeed`), pula (`kJumpVelocity`, só quando
+  `is_grounded`), agacha (`is_grounded && wants_down`), gravidade
+  (`kGravity`) aplicada todo step. Colisão com chão (`kFloorY`) e clamp
+  nas paredes (`kArenaLeft`/`kArenaRight`) dentro de `StepFighter`.
+- Câmera fixa implícita (mundo = tela, sem `Camera2D`); arena e retângulo
+  do lutador desenhados em `DrawArena`/`DrawFighter`.
+- Verificado com smoke test temporário (input scriptado + log a cada 50
+  frames, revertido antes do commit): anda, bate e clampa na parede, pula
+  e volta ao chão, agacha — depois voltou ao controle real por teclado
+  (setas). Build limpo nos dois presets, ASan sem leak do nosso código.
+- Ainda sem FSM explícita (transições são só `if`s dentro de
+  `StepFighter`), sem input buffer, sem combate — isso é F2/F3.
 
-## Próxima fatia (F1 — Lutador vivo)
+## Próxima fatia (F2 — FSM + buffer)
 
-Um retângulo controlável anda frente/trás, pula, agacha; arena com chão e
-paredes; gravidade aplicada dentro do step de simulação (timestep fixo,
-nunca por delta-time variável); câmera fixa. Ainda sem FSM explícita, sem
-input buffer, sem combate — isso é F2/F3.
+FSM completa com transições explícitas (idle, walk_fwd, walk_back, jump,
+crouch, block_standing, block_crouching, attack com startup/active/
+recovery, hitstun, blockstun, knockdown, wakeup, win/lose — a maioria dos
+estados só ganha sentido real a partir da F3, mas a FSM e suas transições
+já devem existir); substituir a leitura direta de `Direction8` por um
+buffer circular de 10 `InputFrame`s por jogador; ataque neutro com
+startup/active/recovery visíveis (retângulo muda de cor nas fases). Nesta
+fase (ou quando `main.cpp` passar de ~800 linhas) começa a extração de
+módulos, nesta ordem: `input`, `fighter`, `combat`, `stage`, `game`.
