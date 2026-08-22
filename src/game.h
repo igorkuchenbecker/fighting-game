@@ -37,3 +37,8 @@ void UpdateMatch(Match& match, Fighter& p1, Fighter& p2, const InputFrame& p1_in
                   const InputFrame& p2_input);
 
 void DrawMatchOverlay(const Match& match);
+
+// Barras de vida/medidor de super, contador de combo e retratos
+// placeholder de cada jogador. `p1_color`/`p2_color` são os mesmos tons
+// usados pra desenhar os lutadores (mantém P1/P2 reconhecíveis no HUD).
+void DrawHud(const Fighter& p1, const Fighter& p2, Color p1_color, Color p2_color);

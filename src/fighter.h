@@ -42,6 +42,8 @@ struct Fighter {
   bool attack_button_held = false;   // estado do frame anterior, p/ detectar borda de subida
   bool current_attack_has_hit = false;  // trava o golpe atual em 1 acerto só
   int health = 100;
+  int combo_hits = 0;   // combo em andamento contra este lutador (reseta ao sair de Hitstun)
+  int super_meter = 0;  // 0-100; enche ao dar/tomar dano (sem golpe pra gastar ainda — F5)
 };
 
 // Avança a simulação de um lutador em um passo fixo de 1/60s. Puro e
@@ -66,6 +68,11 @@ void ApplyHitReaction(Fighter& defender, int hitstun_frames);
 void ApplyBlockReaction(Fighter& defender, int blockstun_frames);
 void ApplyKnockdownReaction(Fighter& defender);
 void SetRoundOutcome(Fighter& fighter, bool won);
+
+// Soma (ou subtrai) do medidor de super, sempre travado em [0, 100].
+// Chamado pelo módulo de combate quando um golpe acerta/é bloqueado — ver
+// requisito duro "medidor ganha ao dar/tomar dano".
+void AddSuperMeter(Fighter& fighter, int amount);
 
 // Reseta um lutador pro início de um novo round (posição, vida, estado).
 void ResetFighterForNewRound(Fighter& fighter, float start_x);

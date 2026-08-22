@@ -181,6 +181,10 @@ void ResetFighterForNewRound(Fighter& fighter, float start_x) {
   fighter.position = Vector2{start_x, kFloorY};
 }
 
+void AddSuperMeter(Fighter& fighter, int amount) {
+  fighter.super_meter = std::clamp(fighter.super_meter + amount, 0, 100);
+}
+
 void StepFighter(Fighter& fighter, const InputFrame& input) {
   const bool wants_left = DirectionHasLeft(input.direction);
   const bool wants_right = DirectionHasRight(input.direction);
@@ -202,6 +206,9 @@ void StepFighter(Fighter& fighter, const InputFrame& input) {
       fighter.current_attack_has_hit = false;
     } else {
       fighter.attack_phase = AttackPhase::None;
+    }
+    if (previous_state == FighterState::Hitstun && fighter.state != FighterState::Hitstun) {
+      fighter.combo_hits = 0;  // combo termina quando o defensor volta a agir
     }
   } else if (fighter.state == FighterState::Attack) {
     AdvanceAttackPhase(fighter);

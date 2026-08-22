@@ -1,8 +1,18 @@
 #include "game.h"
 
+#include <algorithm>
+
 #include "raylib.h"
 
 namespace {
+
+constexpr int kHudBarWidth = 380;
+constexpr int kHudBarHeight = 24;
+constexpr int kHudMeterHeight = 10;
+constexpr int kHudMeterGap = 4;
+constexpr int kHudPortraitSize = 40;
+constexpr int kHudMargin = 30;
+constexpr int kHudBarY = 70;
 
 void EndRound(Match& match, Fighter& p1, Fighter& p2) {
   const bool p1_won = p2.health <= p1.health;
@@ -41,6 +51,25 @@ void StartNextRound(Match& match, Fighter& p1, Fighter& p2) {
 void DrawCenteredText(const char* text, int y, int font_size, Color color) {
   const int width = MeasureText(text, font_size);
   DrawText(text, (kScreenWidth - width) / 2, y, font_size, color);
+}
+
+// `anchor_right`: a barra de P2 fica presa na borda direita e encolhe
+// pra dentro (drena da esquerda pra direita), espelhando a de P1.
+void DrawStatBar(int bar_x, int y, int height, float fraction, Color empty_color,
+                  Color fill_color, bool anchor_right) {
+  fraction = std::clamp(fraction, 0.0f, 1.0f);
+  const int filled_width = static_cast<int>(static_cast<float>(kHudBarWidth) * fraction);
+  const int filled_x = anchor_right ? bar_x + (kHudBarWidth - filled_width) : bar_x;
+  DrawRectangle(bar_x, y, kHudBarWidth, height, empty_color);
+  DrawRectangle(filled_x, y, filled_width, height, fill_color);
+  DrawRectangleLines(bar_x, y, kHudBarWidth, height, RAYWHITE);
+}
+
+void DrawComboText(int bar_x, int y, int combo_hits, bool anchor_right) {
+  if (combo_hits < 2) return;
+  const char* text = TextFormat("%d HITS", combo_hits);
+  const int width = MeasureText(text, 20);
+  DrawText(text, anchor_right ? bar_x + kHudBarWidth - width : bar_x, y, 20, YELLOW);
 }
 
 }  // namespace
@@ -115,4 +144,29 @@ void DrawMatchOverlay(const Match& match) {
                                                    : "P2 VENCEU A PARTIDA!",
                       kTitleY, kBigFontSize, RAYWHITE);
   }
+}
+
+void DrawHud(const Fighter& p1, const Fighter& p2, Color p1_color, Color p2_color) {
+  const int p1_portrait_x = kHudMargin;
+  const int p1_bar_x = p1_portrait_x + kHudPortraitSize + 10;
+  const int p2_bar_x = kScreenWidth - kHudMargin - kHudPortraitSize - 10 - kHudBarWidth;
+  const int p2_portrait_x = kScreenWidth - kHudMargin - kHudPortraitSize;
+  const int meter_y = kHudBarY + kHudBarHeight + kHudMeterGap;
+  const int combo_y = meter_y + kHudMeterHeight + 6;
+
+  DrawRectangle(p1_portrait_x, kHudBarY, kHudPortraitSize, kHudPortraitSize, p1_color);
+  DrawRectangleLines(p1_portrait_x, kHudBarY, kHudPortraitSize, kHudPortraitSize, RAYWHITE);
+  DrawStatBar(p1_bar_x, kHudBarY, kHudBarHeight, static_cast<float>(p1.health) / 100.0f,
+              Color{50, 15, 15, 255}, RED, /*anchor_right=*/false);
+  DrawStatBar(p1_bar_x, meter_y, kHudMeterHeight, static_cast<float>(p1.super_meter) / 100.0f,
+              Color{15, 15, 50, 255}, SKYBLUE, /*anchor_right=*/false);
+  DrawComboText(p1_bar_x, combo_y, p1.combo_hits, /*anchor_right=*/false);
+
+  DrawRectangle(p2_portrait_x, kHudBarY, kHudPortraitSize, kHudPortraitSize, p2_color);
+  DrawRectangleLines(p2_portrait_x, kHudBarY, kHudPortraitSize, kHudPortraitSize, RAYWHITE);
+  DrawStatBar(p2_bar_x, kHudBarY, kHudBarHeight, static_cast<float>(p2.health) / 100.0f,
+              Color{50, 15, 15, 255}, RED, /*anchor_right=*/true);
+  DrawStatBar(p2_bar_x, meter_y, kHudMeterHeight, static_cast<float>(p2.super_meter) / 100.0f,
+              Color{15, 15, 50, 255}, SKYBLUE, /*anchor_right=*/true);
+  DrawComboText(p2_bar_x, combo_y, p2.combo_hits, /*anchor_right=*/true);
 }

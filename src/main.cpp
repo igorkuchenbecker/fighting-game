@@ -16,6 +16,9 @@ extern "C" const char* __lsan_default_suppressions() {
 
 namespace {
 
+constexpr Color kP1Color = MAROON;
+constexpr Color kP2Color = DARKBLUE;
+
 // `base_color` distingue P1/P2 (dois tons, exigido enquanto o visual for
 // retângulos de código nas F0-4); as fases do ataque sobrepõem essa cor.
 Color FighterColor(const Fighter& fighter, Color base_color) {
@@ -86,9 +89,10 @@ int main() {
     BeginDrawing();
     ClearBackground(BLACK);
     DrawArena();
-    DrawFighter(p1, MAROON);
-    DrawFighter(p2, DARKBLUE);
+    DrawFighter(p1, kP1Color);
+    DrawFighter(p2, kP2Color);
     DrawMatchOverlay(match);
+    DrawHud(p1, p2, kP1Color, kP2Color);
     EndDrawing();
   }
 

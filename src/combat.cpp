@@ -1,5 +1,7 @@
 #include "combat.h"
 
+#include <algorithm>
+
 namespace {
 
 bool BoxesOverlap(Rectangle a, Rectangle b) {
@@ -11,6 +13,21 @@ bool CanBlock(const Fighter& fighter) {
   return fighter.is_grounded &&
          (fighter.state == FighterState::Idle || fighter.state == FighterState::WalkForward ||
           fighter.state == FighterState::WalkBackward || fighter.state == FighterState::Crouch);
+}
+
+// Ganho de medidor de super por hit/bloqueio — genérico por ora (só existe
+// 1 golpe); quando a F5 trouxer um moveset de verdade, cada golpe pode
+// ganhar seu próprio valor dentro de MoveData.
+constexpr int kSuperGainOnHitAttacker = 10;
+constexpr int kSuperGainOnHitDefender = 5;
+constexpr int kSuperGainOnBlockAttacker = 5;
+constexpr int kSuperGainOnBlockDefender = 2;
+
+// Escala de dano por golpe consecutivo dentro do mesmo combo (requisito
+// duro "combo counter com escala de dano"): 100% no 1º hit, -10% por hit
+// adicional, com piso de 50%.
+float ComboDamageScale(int combo_hits) {
+  return std::max(0.5f, 1.0f - 0.1f * static_cast<float>(combo_hits - 1));
 }
 
 }  // namespace
@@ -67,9 +84,17 @@ void ResolveCombat(Fighter& attacker, Fighter& defender, const InputFrame& defen
   if (blocked) {
     defender.health -= data.chip_damage;
     ApplyBlockReaction(defender, data.blockstun_frames);
+    AddSuperMeter(attacker, kSuperGainOnBlockAttacker);
+    AddSuperMeter(defender, kSuperGainOnBlockDefender);
   } else {
-    defender.health -= data.damage;
+    const bool is_combo_continuation = defender.state == FighterState::Hitstun;
+    defender.combo_hits = is_combo_continuation ? defender.combo_hits + 1 : 1;
+    const int scaled_damage =
+        static_cast<int>(static_cast<float>(data.damage) * ComboDamageScale(defender.combo_hits));
+    defender.health -= scaled_damage;
     ApplyHitReaction(defender, data.hitstun_frames);
+    AddSuperMeter(attacker, kSuperGainOnHitAttacker);
+    AddSuperMeter(defender, kSuperGainOnHitDefender);
   }
   defender.position.x += push_dir * pushback;
   attacker.position.x -= push_dir * pushback * 0.5f;
